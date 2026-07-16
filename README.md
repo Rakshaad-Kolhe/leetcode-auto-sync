@@ -140,3 +140,22 @@ Supported language -> filename mapping:
 
 Configure the target repository root by setting the `LEETCODE_REPO_PATH`
 environment variable or updating `server/config.py`.
+
+## Root README generation
+
+The server can automatically generate the repository's root `README.md` by
+scanning the `Leetcode-solutions/` tree. The generator produces a deterministic
+index and statistics summary (total solved, counts by difficulty, and a table
+of problems) and overwrites the repository README on each run. The generator
+is invoked automatically after a successful repository write (for example
+when a new problem is added via the `POST /submit` flow).
+
+Root README generation includes:
+
+- Repository scanning from `Easy/`, `Medium/`, and `Hard/`
+- Statistics for total solved and solved counts by difficulty
+- A problem index sorted by problem number
+- Deterministic regeneration from the filesystem source of truth
+
+See `server/repository_scanner.py` and `server/root_readme.py` for implementation
+details and configuration options.
