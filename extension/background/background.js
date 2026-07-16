@@ -10,12 +10,13 @@ const { Logger, MessageTypes } = globalThis.LeetCodeAutoSync;
 
 Logger.info("Background worker script loaded");
 
-// Keep in-memory cache of the current page context and submission state
+// Keep in-memory cache of the current page context, submission state, and latest accepted details
 let activePageContext = null;
 let activeSubmissionState = {
   status: "IDLE",
   verdict: null
 };
+let latestAcceptedSubmission = null;
 
 /**
  * Handles extension installation or startup events.
@@ -42,7 +43,8 @@ function handleMessage(message, sender, sendResponse) {
     // If navigating to a different page, reset active submission state cache
     if (!activePageContext || activePageContext.url !== message.payload.url) {
       activeSubmissionState = { status: "IDLE", verdict: null };
-      Logger.info("Reset active submission state due to page navigation");
+      latestAcceptedSubmission = null;
+      Logger.info("Reset active submission and accepted metadata due to page navigation");
     }
     activePageContext = message.payload;
     Logger.info("Context updated from Content Script:", activePageContext);
@@ -66,6 +68,14 @@ function handleMessage(message, sender, sendResponse) {
     return false;
   }
 
+  // Handle SUBMISSION_ACCEPTED message containing metadata
+  if (message.type === MessageTypes.SUBMISSION_ACCEPTED) {
+    latestAcceptedSubmission = message.payload;
+    Logger.info("Background: Cached accepted problem metadata:", latestAcceptedSubmission);
+    sendResponse({ status: "received" });
+    return false;
+  }
+
   // Handle GET_CURRENT_CONTEXT message from Popup
   if (message.type === MessageTypes.GET_CURRENT_CONTEXT) {
     Logger.info("Popup requested page context. Sending:", activePageContext);
@@ -82,6 +92,16 @@ function handleMessage(message, sender, sendResponse) {
     sendResponse({
       status: "success",
       submissionState: activeSubmissionState
+    });
+    return false;
+  }
+
+  // Handle GET_ACCEPTED_SUBMISSION message from Popup
+  if (message.type === MessageTypes.GET_ACCEPTED_SUBMISSION) {
+    Logger.info("Popup requested accepted submission details. Sending:", latestAcceptedSubmission);
+    sendResponse({
+      status: "success",
+      metadata: latestAcceptedSubmission
     });
     return false;
   }

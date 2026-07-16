@@ -20,6 +20,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const verdictContainer = document.getElementById("verdict-container");
   const submissionVerdictBadge = document.getElementById("submission-verdict");
 
+  // Metadata DOM element selections
+  const metadataCard = document.getElementById("metadata-card");
+  const problemTitleText = document.getElementById("problem-title-display");
+  const problemIdText = document.getElementById("problem-id-display");
+  const problemDifficultyBadge = document.getElementById("problem-difficulty-display");
+  const problemLanguageText = document.getElementById("problem-language-display");
+  const problemUrlLink = document.getElementById("problem-url-display");
+
   // Fetch extension manifest version
   try {
     const manifest = chrome.runtime.getManifest();
@@ -96,6 +104,35 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  /**
+   * Updates the problem details card with extracted metadata.
+   * @param {Object|null} metadata - Extracted metadata model.
+   */
+  function updateMetadataUI(metadata) {
+    if (!metadata) {
+      metadataCard.classList.add("hidden");
+      return;
+    }
+
+    const { id, title, difficulty, language, url } = metadata;
+
+    problemTitleText.textContent = title;
+    problemTitleText.title = title;
+
+    problemIdText.textContent = `#${id}`;
+
+    problemDifficultyBadge.textContent = difficulty;
+    problemDifficultyBadge.className = `badge badge-${difficulty.toLowerCase()}`;
+
+    problemLanguageText.textContent = language;
+
+    problemUrlLink.href = url;
+    problemUrlLink.textContent = url;
+    problemUrlLink.title = url;
+
+    metadataCard.classList.remove("hidden");
+  }
+
   // Request the active page context from background cache
   chrome.runtime.sendMessage({ type: MessageTypes.GET_CURRENT_CONTEXT }, (response) => {
     if (chrome.runtime.lastError) {
@@ -126,17 +163,38 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Request the cached accepted problem details from background cache
+  chrome.runtime.sendMessage({ type: MessageTypes.GET_ACCEPTED_SUBMISSION }, (response) => {
+    if (chrome.runtime.lastError) {
+      Logger.warn("Failed to retrieve accepted submission details from background worker:", chrome.runtime.lastError.message);
+      updateMetadataUI(null);
+      return;
+    }
+
+    if (response && response.status === "success") {
+      updateMetadataUI(response.metadata);
+    } else {
+      updateMetadataUI(null);
+    }
+  });
+
   // Listen for live updates (e.g. while the popup is open)
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === MessageTypes.SUBMISSION_STARTED) {
       Logger.info("Popup: Received SUBMISSION_STARTED event");
       updateSubmissionUI({ status: "RUNNING", verdict: null });
+      // When starting a new submission, clear the old metadata display
+      updateMetadataUI(null);
     } else if (message.type === MessageTypes.SUBMISSION_FINISHED) {
       Logger.info("Popup: Received SUBMISSION_FINISHED event with verdict", message.verdict);
       updateSubmissionUI({ status: "FINISHED", verdict: message.verdict });
+    } else if (message.type === MessageTypes.SUBMISSION_ACCEPTED) {
+      Logger.info("Popup: Received SUBMISSION_ACCEPTED event with metadata", message.payload);
+      updateMetadataUI(message.payload);
     } else if (message.type === MessageTypes.PAGE_CHANGED) {
       // If navigation occurs, reset popup view
       updateSubmissionUI({ status: "IDLE", verdict: null });
+      updateMetadataUI(null);
     }
   });
 });
