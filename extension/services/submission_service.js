@@ -1,11 +1,14 @@
 /**
  * @fileoverview Submission service coordinator.
  * Binds submission detector triggers to state transitions and reports updates to background.
+ * Supports service initialization and complete teardown.
  */
 
 ((global) => {
   const LeetCodeAutoSync = global.LeetCodeAutoSync || {};
   const { Logger, SubmissionState, SubmissionDetector, MessageTypes } = LeetCodeAutoSync;
+
+  let initialized = false;
 
   /**
    * Dispatches updates to the background worker.
@@ -26,7 +29,10 @@
      * Initializes the service, registers detector event hooks, and binds state machine.
      */
     init() {
-      // Initialize the detector
+      if (initialized) return;
+      initialized = true;
+
+      // Initialize the UI detector
       SubmissionDetector.init();
 
       // Hook start event
@@ -70,6 +76,19 @@
       });
 
       Logger.info("Submission coordinator service initialized");
+    },
+
+    /**
+     * Uninitializes bindings and destroys underlying detector components.
+     */
+    destroy() {
+      if (!initialized) return;
+      initialized = false;
+
+      // Destroy the UI detector
+      SubmissionDetector.destroy();
+
+      Logger.info("Submission coordinator service destroyed");
     }
   };
 

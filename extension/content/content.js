@@ -31,6 +31,10 @@
     // Reset submission state on navigation so states do not leak between problems
     SubmissionState.reset();
 
+    // Re-initialize submission service observers and event bindings for the new page context
+    SubmissionService.destroy();
+    SubmissionService.init();
+
     // Send page context to background worker
     chrome.runtime.sendMessage({
       type: MessageTypes.PAGE_CHANGED,

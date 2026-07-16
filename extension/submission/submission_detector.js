@@ -1,6 +1,7 @@
 /**
  * @fileoverview Submission detector that observes LeetCode UI interactions and changes.
  * Monitors button clicks, keyboard shortcuts, and DOM mutations to trigger callbacks.
+ * Optimized with state checking, event throttling, and resource cleanup.
  */
 
 ((global) => {
@@ -10,7 +11,10 @@
   const startedCallbacks = [];
   const runningCallbacks = [];
   const finishedCallbacks = [];
+  
   let mutationObserver = null;
+  let isScanning = false;
+  let initialized = false;
 
   function triggerStarted() {
     Logger.info("Detector: Submission initiation detected");
@@ -114,19 +118,64 @@
 
   /**
    * Invoked upon DOM changes to update submission detection state.
+   * Throttled using requestAnimationFrame to prevent performance issues.
    */
   function handleDOMMutation() {
-    // Check if actively running first
-    const isRunning = checkRunningState();
-    if (isRunning) {
-      triggerRunning();
+    // Performance Guard: Short-circuit DOM queries if submission is not active
+    const state = LeetCodeAutoSync.SubmissionState ? LeetCodeAutoSync.SubmissionState.getState() : "IDLE";
+    if (state !== "SUBMITTING" && state !== "RUNNING") {
       return;
     }
 
-    // Check if a final verdict is visible
-    const verdict = detectVerdict();
-    if (verdict) {
-      triggerFinished(verdict);
+    if (isScanning) return;
+    isScanning = true;
+
+    requestAnimationFrame(() => {
+      const isRunning = checkRunningState();
+      
+      if (isRunning) {
+        triggerRunning();
+        isScanning = false;
+        return;
+      }
+
+      // If we are currently in RUNNING state and judging is complete, identify final verdict
+      if (state === "RUNNING") {
+        const verdict = detectVerdict();
+        if (verdict) {
+          triggerFinished(verdict);
+        } else {
+          // Graceful fallback: wait briefly for final verdict DOM rendering
+          setTimeout(() => {
+            const finalVerdict = detectVerdict();
+            if (finalVerdict) {
+              triggerFinished(finalVerdict);
+            } else {
+              triggerFinished(Verdicts.UNKNOWN);
+            }
+          }, 150);
+        }
+      } else {
+        // If still in SUBMITTING state, look for early/instant verdicts
+        const verdict = detectVerdict();
+        if (verdict) {
+          triggerFinished(verdict);
+        }
+      }
+
+      isScanning = false;
+    });
+  }
+
+  function handleClick(event) {
+    if (isSubmitButton(event.target)) {
+      triggerStarted();
+    }
+  }
+
+  function handleKeydown(event) {
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === "Enter") {
+      triggerStarted();
     }
   }
 
@@ -135,21 +184,16 @@
      * Initializes listener bindings and DOM MutationObservers.
      */
     init() {
-      // 1. Click Listener for Submit Button (delegation)
-      document.addEventListener("click", (event) => {
-        if (isSubmitButton(event.target)) {
-          triggerStarted();
-        }
-      }, true);
+      if (initialized) return;
+      initialized = true;
 
-      // 2. Keyboard shortcut listener for Submit (Ctrl+Shift+Enter / Cmd+Shift+Enter)
-      window.addEventListener("keydown", (event) => {
-        if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === "Enter") {
-          triggerStarted();
-        }
-      }, true);
+      // Click event listener using capture phase
+      document.addEventListener("click", handleClick, true);
 
-      // 3. MutationObserver on the full body to capture text changes in the submission panel
+      // Keyboard hotkeys event listener
+      window.addEventListener("keydown", handleKeydown, true);
+
+      // MutationObserver on the body
       mutationObserver = new MutationObserver(() => {
         handleDOMMutation();
       });
@@ -164,6 +208,30 @@
     },
 
     /**
+     * Cleans up event listeners and disconnects MutationObserver to prevent memory leaks.
+     */
+    destroy() {
+      if (!initialized) return;
+      initialized = false;
+
+      if (mutationObserver) {
+        mutationObserver.disconnect();
+        mutationObserver = null;
+      }
+
+      document.removeEventListener("click", handleClick, true);
+      window.removeEventListener("keydown", handleKeydown, true);
+
+      // Empty callback lists to release memory
+      startedCallbacks.length = 0;
+      runningCallbacks.length = 0;
+      finishedCallbacks.length = 0;
+      isScanning = false;
+
+      Logger.info("Submission Detector cleaned up and destroyed");
+    },
+
+    /**
      * Registers callback for submission start detection.
      * @param {function(): void} callback
      */
@@ -172,7 +240,7 @@
     },
 
     /**
-     * Registers callback for submission running detection.
+     * Registers callback for submission running/judging detection.
      * @param {function(): void} callback
      */
     onSubmissionRunning(callback) {
