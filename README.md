@@ -40,7 +40,9 @@ cd server
 uvicorn app:app --reload
 ```
 
-You can also override configuration with environment variables such as `HOST`, `PORT`, `LOG_LEVEL`, and `LEETCODE_REPO_PATH`.
+You can also override configuration with environment variables such as `HOST`,
+`PORT`, `LOG_LEVEL`, `LEETCODE_REPO_PATH`, `AUTO_PUSH`, `REMOTE_NAME`, and
+`DEFAULT_BRANCH`.
 
 ## Example Health Response
 
@@ -84,11 +86,21 @@ Example success response:
 
 ```json
 {
-  "status": "accepted",
-  "message": "Submission received successfully.",
+  "status": "created",
   "problem": {
     "id": 49,
     "title": "Group Anagrams"
+  },
+  "git": {
+    "status": "committed",
+    "commit": "abc1234",
+    "branch": "main",
+    "pushed": true,
+    "files": [
+      "Leetcode-solutions/Medium/0049-Group-Anagrams/README.md",
+      "Leetcode-solutions/Medium/0049-Group-Anagrams/solution.cpp",
+      "README.md"
+    ]
   }
 }
 ```
@@ -159,3 +171,92 @@ Root README generation includes:
 
 See `server/repository_scanner.py` and `server/root_readme.py` for implementation
 details and configuration options.
+
+## Git Automation
+
+After the repository writer saves a submission and the root README is
+regenerated, the backend runs the Git service:
+
+```text
+Repository Writer
+        |
+        v
+Root README Generator
+        |
+        v
+Git Service
+        |
+        v
+Return Success
+```
+
+The Git service uses the installed local `git` executable through Python
+`subprocess`. It validates the repository, checks the current branch, detects
+modified or untracked files, stages changes with `git add .`, creates a
+problem-specific commit, and optionally pushes the commit to the configured
+remote.
+
+Commit messages are generated from the submission result:
+
+- New problem: `Add 0049 - Group Anagrams`
+- Updated problem: `Update 0049 - Group Anagrams`
+
+If there are no repository changes, the service skips commit and push:
+
+```json
+{
+  "status": "no_changes"
+}
+```
+
+### Requirements
+
+Install Git and make sure the `git` executable is available on `PATH`.
+
+The target repository configured by `LEETCODE_REPO_PATH` must already be a Git
+repository. Configure credentials, SSH keys, or credential helpers outside this
+application; the backend does not manage GitHub authentication.
+
+### Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AUTO_PUSH` | `true` | When enabled, push successful commits to the configured remote. |
+| `REMOTE_NAME` | `origin` | Remote name used for pushes. |
+| `DEFAULT_BRANCH` | `main` | Expected default branch for logging and operational context. |
+| `LEETCODE_REPO_PATH` | project root | Local repository root to update and commit. |
+
+When `AUTO_PUSH=false`, the service still stages and commits changes but skips
+`git push`. The API response includes `"pushed": false`.
+
+### Troubleshooting
+
+Git failures are returned as structured JSON without raw stack traces. Common
+error codes include:
+
+- `git_not_installed`: Git is missing from `PATH`.
+- `invalid_repository`: `LEETCODE_REPO_PATH` is not a Git repository.
+- `detached_head`: the repository is not currently on a branch.
+- `merge_conflicts`: unresolved merge conflicts are present.
+- `missing_remote`: the configured remote does not exist.
+- `commit_failure`: Git could not create the commit.
+- `push_failure`: Git could not push to the configured remote.
+
+Example error response embedded in the submission acknowledgement:
+
+```json
+{
+  "status": "created",
+  "problem": {
+    "id": 49,
+    "title": "Group Anagrams"
+  },
+  "git": {
+    "status": "error",
+    "error": {
+      "code": "missing_remote",
+      "message": "Git remote 'origin' is not configured."
+    }
+  }
+}
+```
