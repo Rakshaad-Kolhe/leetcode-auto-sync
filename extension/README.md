@@ -36,15 +36,20 @@ extension/
     submission_detector.js Monitors DOM mutations, clicks, and shortcuts for status
   services/
     submission_service.js Coordinates detector events and state updates
+    metadata_service.js   Coordinates metadata parsing, validation, and messaging
+  models/
+    submission_model.js   Schema and validator representing parsed problem details
+  parser/
+    metadata_parser.js    Robust DOM parsing with fallback selectors for extraction
 ```
 
 Current behavior:
 
-- The background service worker caches page contexts and submission states, handles changes, and serves data to the popup.
-- The content script runs on `https://leetcode.com/*`, initializes the context observer and submission detector services.
-- The submission detector listens to button clicks, Ctrl/Cmd+Shift+Enter shortcuts, and DOM changes to identify judging status.
-- The submission state machine handles transitions between `IDLE`, `SUBMITTING`, `RUNNING`, and `FINISHED`.
-- The popup displays the current page context, live submission states, and final verdicts with distinct badge colors.
+- The background service worker caches page contexts, submission states, and Accepted metadata model details.
+- The content script runs on `https://leetcode.com/*`, initializes all observers, context detectors, and metadata scrapers.
+- The submission detector tracks submit interactions and DOM updates to coordinate state transitions.
+- The metadata service listens for Accepted submissions, parses problem details, validates against the schema, and messages the background.
+- The popup dynamically queries and displays context, live submission states, and accepted problem details with dedicated color badges.
 
 ## Permissions
 
