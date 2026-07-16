@@ -7,8 +7,20 @@
   const LeetCodeAutoSync = global.LeetCodeAutoSync || {};
   const { Logger } = LeetCodeAutoSync;
 
-  const BACKEND_URL = "http://127.0.0.1:8000";
+  const DEFAULT_BACKEND_URL = "http://127.0.0.1:8000";
   const TIMEOUT_MS = 8000;
+
+  /**
+   * Reads the configured backend URL from chrome.storage.local.
+   * @returns {Promise<string>}
+   */
+  function getBackendUrl() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get({ backendUrl: DEFAULT_BACKEND_URL }, (items) => {
+        resolve(items.backendUrl || DEFAULT_BACKEND_URL);
+      });
+    });
+  }
 
   /**
    * Normalizes responses from the network layer.
@@ -66,13 +78,22 @@
 
   const BackendService = {
     /**
+     * Exposes the active target URL.
+     * @returns {Promise<string>}
+     */
+    async getUrl() {
+      return getBackendUrl();
+    },
+
+    /**
      * Checks if the FastAPI backend is running and healthy.
      * @returns {Promise<Object>} Normalized response status.
      */
     async checkBackend() {
       Logger.info("BackendService: Checking health connectivity status...");
+      const baseUrl = await getBackendUrl();
       try {
-        const response = await fetchWithTimeout(`${BACKEND_URL}/health`, {
+        const response = await fetchWithTimeout(`${baseUrl}/health`, {
           method: "GET",
           headers: {
             "Accept": "application/json"
@@ -115,9 +136,10 @@
         code: submission.code
       };
 
-      Logger.info("BackendService: Payload validated. Dispatching to backend POST /submit...");
+      const baseUrl = await getBackendUrl();
+      Logger.info(`BackendService: Payload validated. Dispatching to backend POST ${baseUrl}/submit...`);
       try {
-        const response = await fetchWithTimeout(`${BACKEND_URL}/submit`, {
+        const response = await fetchWithTimeout(`${baseUrl}/submit`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

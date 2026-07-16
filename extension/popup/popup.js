@@ -30,21 +30,65 @@ document.addEventListener("DOMContentLoaded", () => {
   const extractionStatusBadge = document.getElementById("extraction-status-display");
   const problemUrlLink = document.getElementById("problem-url-display");
 
-  // Sync DOM element selections
-  const backendConnBadge = document.getElementById("backend-conn-status");
-  const latestSyncBadge = document.getElementById("latest-sync-status");
-  const syncTimeContainer = document.getElementById("sync-time-container");
-  const latestSyncTimeText = document.getElementById("latest-sync-time");
-  const syncErrorContainer = document.getElementById("sync-error-container");
-  const latestSyncErrorText = document.getElementById("latest-sync-error");
+  // Settings DOM element selections
+  const backendUrlInput = document.getElementById("backend-url-input");
+  const saveSettingsBtn = document.getElementById("save-settings-btn");
+
+  // Manual action DOM element selections
+  const checkBackendBtn = document.getElementById("check-backend-btn");
+  const retrySyncBtn = document.getElementById("retry-sync-btn");
+
+  // Diagnostics DOM element selections
+  const diagExtVersionText = document.getElementById("diag-ext-version");
+  const diagBackVersionText = document.getElementById("diag-back-version");
+  const diagBackUrlText = document.getElementById("diag-back-url");
+  const diagBrowserVersionText = document.getElementById("diag-browser-version");
+  const copyDiagBtn = document.getElementById("copy-diag-btn");
+
+  // Popup state caching for diagnostics report
+  const diagState = {
+    extVersion: "1.0.0",
+    backVersion: "--",
+    backUrl: "http://127.0.0.1:8000",
+    browserClient: navigator.userAgent,
+    connected: false,
+    latestSync: null,
+    pageContext: null,
+    submissionState: null
+  };
 
   // Fetch extension manifest version
   try {
     const manifest = chrome.runtime.getManifest();
     versionElement.textContent = `Version ${manifest.version}`;
+    diagState.extVersion = manifest.version;
   } catch (err) {
     Logger.error("Failed to read extension version:", err);
     versionElement.textContent = "Version unknown";
+  }
+
+  /**
+   * Refreshes the textual details inside the diagnostics panel.
+   */
+  function refreshDiagnostics() {
+    diagExtVersionText.textContent = `v${diagState.extVersion}`;
+    diagBackVersionText.textContent = diagState.backVersion;
+    diagBackUrlText.textContent = diagState.backUrl;
+    diagBackUrlText.title = diagState.backUrl;
+    diagBrowserVersionText.textContent = diagState.browserClient;
+    diagBrowserVersionText.title = diagState.browserClient;
+  }
+
+  /**
+   * Loads the configured backend URL from settings storage.
+   */
+  function loadSettings() {
+    chrome.storage.local.get({ backendUrl: "http://127.0.0.1:8000" }, (items) => {
+      const url = items.backendUrl || "http://127.0.0.1:8000";
+      backendUrlInput.value = url;
+      diagState.backUrl = url;
+      refreshDiagnostics();
+    });
   }
 
   /**
@@ -52,6 +96,8 @@ document.addEventListener("DOMContentLoaded", () => {
    * @param {Object|null} context - Context object containing pageType, slug, and url.
    */
   function updateUI(context) {
+    diagState.pageContext = context;
+
     if (!context) {
       pageTypeBadge.textContent = "UNKNOWN";
       pageTypeBadge.className = "badge badge-unknown";
@@ -79,6 +125,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // Update URL text field
     currentUrlText.textContent = url;
     currentUrlText.title = url;
+
+    refreshDiagnostics();
   }
 
   /**
@@ -86,6 +134,8 @@ document.addEventListener("DOMContentLoaded", () => {
    * @param {Object} subState - Object containing status and verdict.
    */
   function updateSubmissionUI(subState) {
+    diagState.submissionState = subState;
+
     if (!subState) {
       submissionStateBadge.textContent = "IDLE";
       submissionStateBadge.className = "badge state-idle";
@@ -112,6 +162,8 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       verdictContainer.classList.add("hidden");
     }
+
+    refreshDiagnostics();
   }
 
   /**
@@ -153,16 +205,22 @@ document.addEventListener("DOMContentLoaded", () => {
    * Updates the synchronization panel with backend connection and sync result details.
    * @param {boolean} connected - Is connection alive.
    * @param {Object} latestSync - Cached synchronization outcome metrics.
+   * @param {string|null} backendVersion - Detected backend version value.
    */
-  function updateSyncUI(connected, latestSync) {
+  function updateSyncUI(connected, latestSync, backendVersion) {
     // 1. Connection status rendering
     if (connected) {
       backendConnBadge.textContent = "Connected";
       backendConnBadge.className = "badge badge-easy";
+      diagState.connected = true;
     } else {
       backendConnBadge.textContent = "Disconnected";
       backendConnBadge.className = "badge badge-hard";
+      diagState.connected = false;
     }
+
+    diagState.backVersion = backendVersion || "--";
+    diagState.latestSync = latestSync;
 
     // 2. Sync result rendering
     if (!latestSync || latestSync.success === null) {
@@ -170,6 +228,7 @@ document.addEventListener("DOMContentLoaded", () => {
       latestSyncBadge.className = "badge badge-unknown";
       syncTimeContainer.classList.add("hidden");
       syncErrorContainer.classList.add("hidden");
+      refreshDiagnostics();
       return;
     }
 
@@ -211,7 +270,125 @@ document.addEventListener("DOMContentLoaded", () => {
         syncErrorContainer.classList.add("hidden");
       }
     }
+
+    refreshDiagnostics();
   }
+
+  /**
+   * Dispatches a backend health poll and triggers sync updates.
+   */
+  function triggerBackendCheck() {
+    backendConnBadge.textContent = "Checking...";
+    backendConnBadge.className = "badge badge-unknown";
+
+    chrome.runtime.sendMessage({ type: MessageTypes.GET_SYNC_STATUS }, (response) => {
+      if (chrome.runtime.lastError) {
+        Logger.warn("Check failed:", chrome.runtime.lastError.message);
+        updateSyncUI(false, null, null);
+        return;
+      }
+
+      if (response && response.status === "success") {
+        updateSyncUI(response.connected, response.latestSync, response.backendVersion);
+      } else {
+        updateSyncUI(false, null, null);
+      }
+    });
+  }
+
+  // Trigger manual settings save
+  saveSettingsBtn.addEventListener("click", () => {
+    const url = backendUrlInput.value.trim();
+    if (!url) {
+      alert("Backend URL cannot be empty");
+      return;
+    }
+
+    chrome.storage.local.set({ backendUrl: url }, () => {
+      diagState.backUrl = url;
+      
+      const originalText = saveSettingsBtn.textContent;
+      saveSettingsBtn.textContent = "Saved!";
+      saveSettingsBtn.className = "badge badge-easy";
+      
+      setTimeout(() => {
+        saveSettingsBtn.textContent = originalText;
+        saveSettingsBtn.className = "badge badge-contest";
+      }, 1500);
+
+      triggerBackendCheck();
+    });
+  });
+
+  // Bind manual check button
+  checkBackendBtn.addEventListener("click", () => {
+    triggerBackendCheck();
+  });
+
+  // Bind manual retry button
+  retrySyncBtn.addEventListener("click", () => {
+    const originalText = retrySyncBtn.textContent;
+    retrySyncBtn.textContent = "Retrying...";
+    retrySyncBtn.className = "badge badge-contest";
+    retrySyncBtn.disabled = true;
+
+    chrome.runtime.sendMessage({ type: "RETRY_LAST_SYNC" }, (response) => {
+      retrySyncBtn.disabled = false;
+      retrySyncBtn.textContent = originalText;
+      retrySyncBtn.className = "badge badge-unknown";
+
+      if (chrome.runtime.lastError) {
+        Logger.error("Failed to message background retry dispatcher:", chrome.runtime.lastError.message);
+        return;
+      }
+
+      if (response && response.status === "success") {
+        Logger.info("Manual synchronization retry started successfully");
+      } else {
+        const error = response && response.error ? response.error : "No cached accepted submission available to retry";
+        alert(error);
+      }
+    });
+  });
+
+  // Bind Copy Diagnostics button
+  copyDiagBtn.addEventListener("click", () => {
+    const report = `LeetCode Auto Sync Diagnostics Report
+Generated: ${new Date().toISOString()}
+
+--- Extension Info ---
+Extension Version: v${diagState.extVersion}
+Current Page Type: ${diagState.pageContext ? diagState.pageContext.pageType : "UNKNOWN"}
+Current Page Slug: ${diagState.pageContext && diagState.pageContext.slug ? diagState.pageContext.slug : "None"}
+Current Submission State: ${diagState.submissionState ? diagState.submissionState.status : "IDLE"}
+Current Submission Verdict: ${diagState.submissionState && diagState.submissionState.verdict ? diagState.submissionState.verdict : "None"}
+
+--- Backend Info ---
+Backend Connection: ${diagState.connected ? "Connected" : "Disconnected"}
+Backend URL: ${diagState.backUrl}
+Backend Version: ${diagState.backVersion}
+
+--- Client Info ---
+Browser UserAgent: ${diagState.browserClient}
+
+--- Synchronization Info ---
+Latest Sync Success: ${diagState.latestSync ? diagState.latestSync.success : "None"}
+Latest Sync Time: ${diagState.latestSync && diagState.latestSync.timestamp ? new Date(diagState.latestSync.timestamp).toLocaleTimeString() : "None"}
+Latest Sync Error: ${diagState.latestSync && diagState.latestSync.error ? diagState.latestSync.error : "None"}
+`;
+
+    navigator.clipboard.writeText(report).then(() => {
+      const originalText = copyDiagBtn.textContent;
+      copyDiagBtn.textContent = "Copied!";
+      copyDiagBtn.className = "badge badge-easy";
+      setTimeout(() => {
+        copyDiagBtn.textContent = originalText;
+        copyDiagBtn.className = "badge badge-contest";
+      }, 1500);
+    }).catch((err) => {
+      Logger.error("Failed to copy diagnostics report:", err);
+    });
+  });
 
   // Request the active page context from background cache
   chrome.runtime.sendMessage({ type: MessageTypes.GET_CURRENT_CONTEXT }, (response) => {
@@ -258,20 +435,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Request the synchronization status from background cache
-  chrome.runtime.sendMessage({ type: MessageTypes.GET_SYNC_STATUS }, (response) => {
-    if (chrome.runtime.lastError) {
-      Logger.warn("Failed to retrieve sync status from background worker:", chrome.runtime.lastError.message);
-      updateSyncUI(false, null);
-      return;
-    }
-
-    if (response && response.status === "success") {
-      updateSyncUI(response.connected, response.latestSync);
-    } else {
-      updateSyncUI(false, null);
-    }
-  });
+  // Load configured settings and perform health check
+  loadSettings();
+  triggerBackendCheck();
 
   // Listen for live updates (e.g. while the popup is open)
   chrome.runtime.onMessage.addListener((message) => {
@@ -280,11 +446,11 @@ document.addEventListener("DOMContentLoaded", () => {
       updateSubmissionUI({ status: "RUNNING", verdict: null });
       // When starting a new submission, clear the old metadata and sync display
       updateMetadataUI(null);
-      updateSyncUI(false, null);
+      updateSyncUI(false, null, null);
       // Query sync status to update backend connection badge concurrently
       chrome.runtime.sendMessage({ type: MessageTypes.GET_SYNC_STATUS }, (response) => {
         if (response && response.status === "success") {
-          updateSyncUI(response.connected, null);
+          updateSyncUI(response.connected, null, response.backendVersion);
         }
       });
     } else if (message.type === MessageTypes.SUBMISSION_FINISHED) {
@@ -298,19 +464,19 @@ document.addEventListener("DOMContentLoaded", () => {
       // Refresh connect status alongside the sync updates
       chrome.runtime.sendMessage({ type: MessageTypes.GET_SYNC_STATUS }, (response) => {
         if (response && response.status === "success") {
-          updateSyncUI(response.connected, response.latestSync);
+          updateSyncUI(response.connected, response.latestSync, response.backendVersion);
         } else {
-          updateSyncUI(message.payload.success === true, message.payload);
+          updateSyncUI(message.payload.success === true, message.payload, null);
         }
       });
     } else if (message.type === MessageTypes.PAGE_CHANGED) {
       // If navigation occurs, reset popup views
       updateSubmissionUI({ status: "IDLE", verdict: null });
       updateMetadataUI(null);
-      updateSyncUI(false, null);
+      updateSyncUI(false, null, null);
       chrome.runtime.sendMessage({ type: MessageTypes.GET_SYNC_STATUS }, (response) => {
         if (response && response.status === "success") {
-          updateSyncUI(response.connected, response.latestSync);
+          updateSyncUI(response.connected, response.latestSync, response.backendVersion);
         }
       });
     }

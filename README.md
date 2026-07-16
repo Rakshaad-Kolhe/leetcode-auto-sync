@@ -1,273 +1,137 @@
 # LeetCode Auto Sync
 
-LeetCode Auto Sync is a local-first backend foundation for a future browser-extension-driven workflow that will capture LeetCode activity and synchronize it into a Git-backed repository. This PR establishes only the server base so later milestones can layer in parsing, Git automation, and repository synchronization without exposing credentials to the browser extension.
+LeetCode Auto Sync is a local-first, production-grade tool that automatically captures your accepted LeetCode submissions, extracts their metadata and solution source code, and commits them to your local Git repository.
 
 ## Architecture
 
+The extension is designed around a decoupled, local-first security model:
+
 ```mermaid
-flowchart LR
-    LC[LeetCode] --> EXT[Manifest V3 Browser Extension]
-    EXT --> API[Local FastAPI Server]
-    API --> GIT[Local Git Repository]
-    GIT --> GH[GitHub]
+flowchart TD
+    LC[LeetCode.com] -->|Submit Code| EXT[Chrome MV3 Extension]
+    EXT -->|Scrape DOM & Monaco| Parser[Metadata & Solution Parser]
+    Parser -->|Dispatch JSON Payload| Server[Local FastAPI Server]
+    Server -->|Generate Folder Structure| Files[Repository Workspace]
+    Files -->|Auto Commit & Push| Git[Local Git CLI & SSH]
+    Git -->|Publish Sync| GitHub[GitHub Repo]
 ```
 
-## Current Features
+## Features
 
-- FastAPI application skeleton
-- Structured JSON logging
-- Root endpoint for service metadata
-- Health endpoint for readiness checks
-- Centralized configuration values
-- JSON exception handling for API errors
+- **Decoupled Architecture**: All extension operations, DOM parsing, and Monaco Editor scraping happen locally.
+- **State-of-the-Art Parsing**: Employs a hybrid Monaco model-retrieval pipeline that bypasses UI virtualization, capturing indentations and formatting exactly.
+- **Automatic Folder Mappings**: Group solutions under organized directories by difficulty (e.g. `Easy/`, `Medium/`, `Hard/`).
+- **Git Automation**: Writes code files, auto-creates README problem definitions, performs Git commits with clean conventional messages, and optionally pushes to your remote tracking branch.
+- **Diagnostics Dashboard**: View connection state, active page type, submission machine states, and sync logs with clipboard copying tools.
+- **Configuration Storage**: Customize server URLs, persisted safely in `chrome.storage.local`.
 
-## Installation
+---
 
-Create a virtual environment and install the server dependencies:
+## Installation & Setup
 
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r server/requirements.txt
-```
+### 1. Backend Server Setup
 
-## Running the Server
+**Prerequisites**: Python 3.10+ and Git CLI must be installed on your machine.
 
-Start the API from the `server` directory:
+1. Clone the repository to your local machine:
+   ```bash
+   git clone https://github.com/Rakshaad-Kolhe/leetcode-auto-sync.git
+   cd leetcode-auto-sync
+   ```
+2. Create and activate a Python virtual environment:
+   ```bash
+   python -m venv .venv
+   # Windows:
+   .venv\Scripts\activate
+   # macOS/Linux:
+   source .venv/bin/activate
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r server/requirements.txt
+   ```
+4. Start the FastAPI local server:
+   ```bash
+   cd server
+   uvicorn app:app --reload --port 8000
+   ```
+   *The server is now listening at `http://127.0.0.1:8000`.*
 
-```bash
-cd server
-uvicorn app:app --reload
-```
+#### Backend Environment Variables
+You can configure the server behaviour by setting environment variables in a local `.env` file inside `server/` or in your system terminal:
+- `HOST` (Default: `127.0.0.1`)
+- `PORT` (Default: `8000`)
+- `LEETCODE_REPO_PATH`: The target folder where you want your synced problems to write to. (Default: repository root directory)
+- `AUTO_PUSH`: Set to `true` to run `git push` automatically after commits. (Default: `true`)
+- `REMOTE_NAME`: Target remote registry name. (Default: `origin`)
+- `DEFAULT_BRANCH`: Active tracking branch. (Default: `main`)
 
-You can also override configuration with environment variables such as `HOST`,
-`PORT`, `LOG_LEVEL`, `LEETCODE_REPO_PATH`, `AUTO_PUSH`, `REMOTE_NAME`, and
-`DEFAULT_BRANCH`.
+---
 
-## Example Health Response
+### 2. Extension Setup
 
-```json
-{
-  "status": "ok",
-  "version": "0.1.0"
-}
-```
+1. Open your Google Chrome or Chromium browser.
+2. Navigate to the extensions page by entering `chrome://extensions/` in the URL bar.
+3. Turn on the **Developer mode** toggle in the top-right corner.
+4. Click the **Load unpacked** button in the top-left corner.
+5. Select the `extension/` directory from the root of this project.
+6. The LeetCode Auto Sync card should now appear in your list. Pin the extension to your browser toolbar.
 
-## Roadmap
+---
 
-- Add the `/submit` workflow in a later PR
-- Implement LeetCode parsing and problem extraction
-- Add Git automation for local repository sync
-- Generate problem README files and folder structure
-- Add browser extension integration
-- Expand configuration and operational logging
+## Usage Walkthrough
 
-## API
+1. Click on the extension icon in your toolbar to open the dashboard popup.
+2. Confirm the connection status displays **Connected** (in green). If you are running the backend on a custom port, change the **Backend URL** in the settings section, click **Save Settings**, and verify that the connection changes to green.
+3. Go to LeetCode and navigate to any problem (e.g. [Two Sum](https://leetcode.com/problems/two-sum/)).
+4. Notice that the popup context updates to **Page Type: PROBLEM** and shows the active slug.
+5. Write your solution in Monaco Editor and click the **Submit** button.
+6. The popup badge will change to **State: SUBMITTING** and pulse **Judging...** in blue.
+7. If your code yields an **Accepted** verdict:
+   - The extension extracts the problem details (Title, ID, Slug, Difficulty, and Language).
+   - The extension scrapes the Monaco Editor code value directly from the memory model.
+   - The popup displays the completed metadata panel.
+   - The background script dispatches the payload to the local server.
+   - The local server generates difficulty directories, writes your solution file, creates a `README.md` problem template, and commits it to your local Git history.
+   - The popup synchronization card displays **Latest Sync: Success** along with a timestamp.
 
-### POST /submit
+---
 
-Accepts a JSON payload describing an accepted LeetCode submission. The server
-validates the request and returns a stable acknowledgement on success.
+## Security Model
 
-Example request:
+Your credentials stay yours:
+1. **Zero Remote Dependencies**: The extension only makes HTTP requests to your locally configured server (`127.0.0.1:8000`). No analytics, tracking, or telemetry servers are contacted.
+2. **Safe Credentials Handling**: The extension *never* holds, prompts, or requests your GitHub personal access tokens or private keys. The backend uses the native, local Git CLI installed on your operating system, meaning Git naturally uses the secure keys and auth helpers setup inside your machine's keychain.
+3. **Restricted Domain Permissions**: The extension only has permissions to run on `https://leetcode.com/*` and does not run on other tabs or websites.
 
-```json
-{
-  "id": 49,
-  "title": "Group Anagrams",
-  "slug": "group-anagrams",
-  "difficulty": "Medium",
-  "language": "cpp",
-  "code": "#include <bits/stdc++.h>..."
-}
-```
+---
 
-Example success response:
+## Diagnostics & Troubleshooting
 
-```json
-{
-  "status": "created",
-  "problem": {
-    "id": 49,
-    "title": "Group Anagrams"
-  },
-  "git": {
-    "branch": "main",
-    "commit": "abc1234",
-    "pushed": true
-  }
-}
-```
+If you encounter issues, click the **Check Backend** button in the popup to refresh logs. You can also click **Copy Diagnostics Report** to write system information directly to your clipboard for GitHub issue submissions.
 
-Example validation error (missing or invalid fields):
+### Common Problems & Resolutions
 
-```json
-{
-  "detail": [
-    {
-      "loc": ["body", "id"],
-      "msg": "ensure this value is greater than 0",
-      "type": "value_error.number.not_gt"
-    }
-  ]
-}
-```
+#### 1. Backend connection shows Disconnected
+- Verify that your FastAPI python process is active and running in your terminal.
+- Ensure that the URL configuration in your extension popup matches the exact port (e.g. `http://127.0.0.1:8000`).
+- Check that your firewalls are not blocking localhost cross-origin requests.
 
-## Repository Writer
+#### 2. Manual Synchronization Retry
+- If a submission succeeded while the backend server was offline, start your server, open the extension popup, and click **Retry Last Sync** to push the last cached solution.
 
-This service will generate a local repository layout for validated submissions.
+---
 
-Layout produced under the configured `LEETCODE_REPO_PATH` (default is the
-project root) in a `Leetcode-solutions/` directory. Example structure:
+## Frequently Asked Questions (FAQ)
 
-```
-Leetcode-solutions/
-  Easy/
-    0001-Two-Sum/
-      README.md
-      solution.cpp
-  Medium/
-  Hard/
-```
+### Does it support automatic retries?
+No, the extension does not include automatic retries or offline databases to avoid cluttering local disk storage. If a sync fails, click the manual **Retry Last Sync** button.
 
-Supported language -> filename mapping:
+### What languages are supported?
+All major languages on LeetCode (Python, C++, Java, JS, TypeScript, Go, Rust, Ruby, Kotlin, Swift, Scala, Elixir, PHP, SQL) are normalized and mapped to their appropriate file extensions.
 
-- `cpp` -> `solution.cpp`
-- `python3`, `python` -> `solution.py`
-- `java` -> `Solution.java`
-- `javascript` -> `solution.js`
-- `typescript` -> `solution.ts`
-- `go` -> `solution.go`
-- `rust` -> `solution.rs`
-- `c` -> `solution.c`
-- `csharp` -> `Solution.cs`
-- `kotlin` -> `Solution.kt`
-- `swift` -> `Solution.swift`
+---
 
-Configure the target repository root by setting the `LEETCODE_REPO_PATH`
-environment variable or updating `server/config.py`.
-
-## Root README generation
-
-The server can automatically generate the repository's root `README.md` by
-scanning the `Leetcode-solutions/` tree. The generator produces a deterministic
-index and statistics summary (total solved, counts by difficulty, and a table
-of problems) and overwrites the repository README on each run. The generator
-is invoked automatically after a successful repository write (for example
-when a new problem is added via the `POST /submit` flow).
-
-Root README generation includes:
-
-- Repository scanning from `Easy/`, `Medium/`, and `Hard/`
-- Statistics for total solved and solved counts by difficulty
-- A problem index sorted by problem number
-- Deterministic regeneration from the filesystem source of truth
-
-See `server/repository_scanner.py` and `server/root_readme.py` for implementation
-details and configuration options.
-
-## Git Service Foundation
-
-The backend includes a reusable Git service abstraction in
-`server/git_service.py`. It wraps the local `git` executable with Python
-`subprocess` and keeps Git operations out of API routes and business workflows.
-
-The service currently provides foundation methods to:
-
-- Verify a valid Git repository
-- Read the current branch
-- Read repository status
-- Stage changes
-- Commit staged changes
-- Push a branch to the configured remote
-
-The submission pipeline now invokes this service after repository writing and
-root README generation:
-
-```text
-POST /submit
-        |
-        v
-Validate Request
-        |
-        v
-Repository Writer
-        |
-        v
-Root README Generator
-        |
-        v
-Git Service
-        |
-        v
-JSON Response
-```
-
-When files changed, the service stages all changes, creates a problem-specific
-commit, and pushes only when `AUTO_PUSH` is enabled. When no files changed, the
-service skips both commit and push and returns `{"status": "no_changes"}`.
-
-### Git Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AUTO_PUSH` | `true` | Push successful Git commits when enabled. |
-| `REMOTE_NAME` | `origin` | Remote used by `GitService.push_changes()`. |
-| `DEFAULT_BRANCH` | `main` | Expected default branch used for branch metadata. |
-| `LEETCODE_REPO_PATH` | project root | Local repository root used by default. |
-
-If `AUTO_PUSH=false`, submissions still write files, regenerate the README,
-stage changes, and create a local commit. The API response reports
-`"pushed": false`.
-
-### Git Errors
-
-The service raises custom exceptions instead of exposing raw subprocess
-exceptions:
-
-- `GitNotInstalledError`
-- `InvalidRepositoryError`
-- `DetachedHeadError`
-- `PushFailedError`
-- `CommitFailedError`
-- `MissingRemoteError`
-
-Structured logging records repository validation, current branch, repository
-status, commit hashes, and push results. Credentials are never logged.
-
-If repository generation succeeds but Git fails, generated files are preserved
-and the response includes structured Git error details instead of a stack trace:
-
-```json
-{
-  "status": "created",
-  "problem": {
-    "id": 49,
-    "title": "Group Anagrams"
-  },
-  "git": {
-    "status": "error",
-    "error": {
-      "code": "missing_remote",
-      "message": "Git remote 'origin' is not configured."
-    }
-  }
-}
-```
-
-Common Git error codes include:
-
-- `git_not_installed`: Git is not available on `PATH`.
-- `invalid_repository`: `LEETCODE_REPO_PATH` is not a Git repository.
-- `detached_head`: the repository is not currently on a branch.
-- `missing_remote`: the configured remote is not available.
-- `commit_failed`: Git could not create the commit.
-- `push_failed`: Git could not push to the configured remote.
-
-### Commit Messages
-
-`generate_problem_commit_message()` produces deterministic messages for future
-submission integration:
-
-- New problem: `Add 0049 - Group Anagrams`
-- Updated problem: `Update 0049 - Group Anagrams`
+## Known Limitations
+- The extension requires the LeetCode tab to remain open until the submission judging completes to grab the Monaco code lines successfully.
+- Code extraction is geared for standard Monaco-based LeetCode pages. If LeetCode performs full frontend changes, fallbacks will scan DOM trees.
