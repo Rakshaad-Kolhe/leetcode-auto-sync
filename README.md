@@ -40,7 +40,9 @@ cd server
 uvicorn app:app --reload
 ```
 
-You can also override configuration with environment variables such as `HOST`, `PORT`, `LOG_LEVEL`, and `LEETCODE_REPO_PATH`.
+You can also override configuration with environment variables such as `HOST`,
+`PORT`, `LOG_LEVEL`, `LEETCODE_REPO_PATH`, `AUTO_PUSH`, `REMOTE_NAME`, and
+`DEFAULT_BRANCH`.
 
 ## Example Health Response
 
@@ -159,3 +161,54 @@ Root README generation includes:
 
 See `server/repository_scanner.py` and `server/root_readme.py` for implementation
 details and configuration options.
+
+## Git Service Foundation
+
+The backend includes a reusable Git service abstraction in
+`server/git_service.py`. It wraps the local `git` executable with Python
+`subprocess` and keeps Git operations out of API routes and business workflows.
+
+The service currently provides foundation methods to:
+
+- Verify a valid Git repository
+- Read the current branch
+- Read repository status
+- Stage changes
+- Commit staged changes
+- Push a branch to the configured remote
+
+This service is not invoked automatically yet. The `/submit` response remains
+unchanged; a later PR will integrate Git operations after repository writing
+and root README generation.
+
+### Git Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AUTO_PUSH` | `true` | Future integration flag for automatic pushes. |
+| `REMOTE_NAME` | `origin` | Remote used by `GitService.push_changes()`. |
+| `DEFAULT_BRANCH` | `main` | Expected default branch used for branch metadata. |
+| `LEETCODE_REPO_PATH` | project root | Local repository root used by default. |
+
+### Git Errors
+
+The service raises custom exceptions instead of exposing raw subprocess
+exceptions:
+
+- `GitNotInstalledError`
+- `InvalidRepositoryError`
+- `DetachedHeadError`
+- `PushFailedError`
+- `CommitFailedError`
+- `MissingRemoteError`
+
+Structured logging records repository validation, current branch, repository
+status, commit hashes, and push results. Credentials are never logged.
+
+### Commit Messages
+
+`generate_problem_commit_message()` produces deterministic messages for future
+submission integration:
+
+- New problem: `Add 0049 - Group Anagrams`
+- Updated problem: `Update 0049 - Group Anagrams`
