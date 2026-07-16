@@ -16,23 +16,29 @@ the production extension shape needed for future PRs.
 ```text
 extension/
   manifest.json        Manifest V3 configuration
-  background.js        Service worker for future message coordination
-  content.js           LeetCode-only content script placeholder
-  popup.html           Browser action popup markup
-  popup.js             Popup lifecycle behavior
-  styles.css           Popup styles
   icons/               Placeholder extension icons
   README.md            Extension documentation
+  background/
+    background.js      Service worker coordinating page context changes
+  content/
+    content.js         Main content script coordinating observer and page context
+    page_context.js    Page classification and slug extraction utility
+    observer.js        Lightweight SPA navigation and history change observer
+  popup/
+    popup.html         Popup user interface markup
+    popup.js           Popup behavior, querying background for context
+    styles.css         Redesigned dark dashboard theme styles
+  shared/
+    constants.js       Shared PageTypes, MessageTypes, and endpoints
+    logger.js          Prefixed, toggleable logger utility
 ```
 
 Current behavior:
 
-- The background service worker logs startup and replies to messages with
-  `{ "status": "ready" }`.
-- The content script runs only on `https://leetcode.com/*` and logs that it
-  loaded.
-- The popup displays the extension name, version, backend status, and a
-  disabled-in-spirit connection check that says `Coming Soon`.
+- The background service worker caches page contexts, listens to `PAGE_CHANGED` events, and responds to popup queries.
+- The content script runs on `https://leetcode.com/*`, initializes the observer, determines context, logs it, and messages the background.
+- The observer detects SPA navigation, browser back/forward history navigation, and direct page changes without duplications.
+- The popup displays the extension status, current page type (with appropriate badge color), problem slug (if applicable), and current URL.
 
 ## Permissions
 

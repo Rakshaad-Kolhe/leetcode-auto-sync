@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LeetCode Auto Sync</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header class="popup-header">
+        <div class="logo-container">
+          <img class="popup-icon" src="../icons/icon-48.png" alt="Logo" width="36" height="36">
+          <div class="logo-glow"></div>
+        </div>
+        <div class="header-text">
+          <h1>LeetCode Auto Sync</h1>
+          <span id="version" class="version">Version --</span>
+        </div>
+      </header>
+
+      <!-- Status Indicator -->
+      <section class="status-indicator" aria-label="Extension status">
+        <div class="status-dot-container">
+          <div class="status-dot pulse"></div>
+        </div>
+        <div class="status-info">
+          <span class="status-title">Extension Status</span>
+          <span id="extension-status" class="status-text">Active</span>
+        </div>
+      </section>
+
+      <!-- Page Context Card -->
+      <section class="context-card" aria-label="Page Context">
+        <h2>Current Page Context</h2>
+        
+        <div class="context-item">
+          <span class="context-label">Page Type</span>
+          <span id="page-type" class="badge badge-unknown">UNKNOWN</span>
+        </div>
+
+        <div id="slug-container" class="context-item hidden">
+          <span class="context-label">Problem Slug</span>
+          <span id="problem-slug" class="slug-pill">none</span>
+        </div>
+
+        <div class="context-item url-item">
+          <span class="context-label">Current URL</span>
+          <span id="current-url" class="url-text" title="Not on LeetCode">Not on LeetCode</span>
+        </div>
+      </section>
+
+      <!-- Footer/Actions -->
+      <footer class="popup-footer">
+        <p class="description-text">Page context updates automatically on navigation.</p>
+      </footer>
+    </main>
+    <script src="../shared/constants.js"></script>
+    <script src="../shared/logger.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
