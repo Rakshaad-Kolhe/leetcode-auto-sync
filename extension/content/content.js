@@ -4,9 +4,12 @@
  */
 
 (() => {
-  const { Logger, PageContext, Observer, MessageTypes } = window.LeetCodeAutoSync;
+  const { Logger, PageContext, Observer, MessageTypes, SubmissionService, SubmissionState } = window.LeetCodeAutoSync;
 
   Logger.info("Content script loaded");
+
+  // Initialize the submission monitoring service
+  SubmissionService.init();
 
   /**
    * Handles page changes: determines context, logs it, and messages background.
@@ -24,6 +27,13 @@
 
     // Log the page context object as per requirements
     Logger.log("Page context determined:", context);
+
+    // Reset submission state on navigation so states do not leak between problems
+    SubmissionState.reset();
+
+    // Re-initialize submission service observers and event bindings for the new page context
+    SubmissionService.destroy();
+    SubmissionService.init();
 
     // Send page context to background worker
     chrome.runtime.sendMessage({

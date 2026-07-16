@@ -10,8 +10,12 @@ const { Logger, MessageTypes } = globalThis.LeetCodeAutoSync;
 
 Logger.info("Background worker script loaded");
 
-// Keep in-memory cache of the current page context
+// Keep in-memory cache of the current page context and submission state
 let activePageContext = null;
+let activeSubmissionState = {
+  status: "IDLE",
+  verdict: null
+};
 
 /**
  * Handles extension installation or startup events.
@@ -35,8 +39,29 @@ function handleMessage(message, sender, sendResponse) {
 
   // Handle PAGE_CHANGED message from Content Script
   if (message.type === MessageTypes.PAGE_CHANGED) {
+    // If navigating to a different page, reset active submission state cache
+    if (!activePageContext || activePageContext.url !== message.payload.url) {
+      activeSubmissionState = { status: "IDLE", verdict: null };
+      Logger.info("Reset active submission state due to page navigation");
+    }
     activePageContext = message.payload;
     Logger.info("Context updated from Content Script:", activePageContext);
+    sendResponse({ status: "received" });
+    return false;
+  }
+
+  // Handle SUBMISSION_STARTED message
+  if (message.type === MessageTypes.SUBMISSION_STARTED) {
+    activeSubmissionState = { status: "RUNNING", verdict: null };
+    Logger.info("Background: Submission started cached");
+    sendResponse({ status: "received" });
+    return false;
+  }
+
+  // Handle SUBMISSION_FINISHED message
+  if (message.type === MessageTypes.SUBMISSION_FINISHED) {
+    activeSubmissionState = { status: "FINISHED", verdict: message.verdict };
+    Logger.info("Background: Submission finished cached with verdict", message.verdict);
     sendResponse({ status: "received" });
     return false;
   }
@@ -47,6 +72,16 @@ function handleMessage(message, sender, sendResponse) {
     sendResponse({
       status: "success",
       context: activePageContext
+    });
+    return false;
+  }
+
+  // Handle GET_SUBMISSION_STATE message from Popup
+  if (message.type === MessageTypes.GET_SUBMISSION_STATE) {
+    Logger.info("Popup requested submission state. Sending:", activeSubmissionState);
+    sendResponse({
+      status: "success",
+      submissionState: activeSubmissionState
     });
     return false;
   }
