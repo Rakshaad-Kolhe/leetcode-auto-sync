@@ -22,6 +22,9 @@
         "models/submission_model.js",
         "parser/metadata_parser.js",
         "services/metadata_service.js",
+        "models/accepted_submission.js",
+        "parser/solution_parser.js",
+        "services/solution_service.js",
         "content/content.js"
       ],
       "run_at": "document_idle"

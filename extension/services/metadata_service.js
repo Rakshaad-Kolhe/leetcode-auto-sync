@@ -10,23 +10,6 @@
   let initialized = false;
 
   /**
-   * Sends the accepted submission metadata model to the background service worker.
-   * @param {SubmissionModel} model - Validated submission metadata.
-   */
-  function sendMetadataToBackground(model) {
-    chrome.runtime.sendMessage({
-      type: MessageTypes.SUBMISSION_ACCEPTED,
-      payload: model
-    }, (response) => {
-      if (chrome.runtime.lastError) {
-        Logger.warn("MetadataService: Failed to relay metadata to background worker:", chrome.runtime.lastError.message);
-      } else {
-        Logger.info("MetadataService: Background worker acknowledged metadata:", response);
-      }
-    });
-  }
-
-  /**
    * Triggers the metadata extraction flow on successful verification.
    */
   function handleSubmissionAccepted() {
@@ -64,8 +47,12 @@
 
     Logger.info("MetadataService: Metadata extraction completed and validated successfully", model);
 
-    // 4. Relay details to background
-    sendMetadataToBackground(model);
+    // 4. Relay details to SolutionService for code scraping
+    if (LeetCodeAutoSync.SolutionService) {
+      LeetCodeAutoSync.SolutionService.processAcceptedSubmission(model);
+    } else {
+      Logger.error("MetadataService: SolutionService coordinator not found");
+    }
   }
 
   const MetadataService = {

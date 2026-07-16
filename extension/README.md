@@ -36,20 +36,24 @@ extension/
     submission_detector.js Monitors DOM mutations, clicks, and shortcuts for status
   services/
     submission_service.js Coordinates detector events and state updates
-    metadata_service.js   Coordinates metadata parsing, validation, and messaging
+    metadata_service.js   Coordinates metadata parsing, validation, and triggers solution service
+    solution_service.js   Coordinates solution code parsing, validation, and messaging
   models/
     submission_model.js   Schema and validator representing parsed problem details
+    accepted_submission.js Schema and validator representing complete solution object
   parser/
-    metadata_parser.js    Robust DOM parsing with fallback selectors for extraction
+    metadata_parser.js    Robust DOM parsing with fallback selectors for metadata
+    solution_parser.js    Monaco Editor API and DOM parser to extract code
 ```
 
 Current behavior:
 
-- The background service worker caches page contexts, submission states, and Accepted metadata model details.
-- The content script runs on `https://leetcode.com/*`, initializes all observers, context detectors, and metadata scrapers.
+- The background service worker caches page contexts, submission states, and complete AcceptedSubmission model details.
+- The content script runs on `https://leetcode.com/*`, initializes all observers, context detectors, and solution code scrapers.
 - The submission detector tracks submit interactions and DOM updates to coordinate state transitions.
-- The metadata service listens for Accepted submissions, parses problem details, validates against the schema, and messages the background.
-- The popup dynamically queries and displays context, live submission states, and accepted problem details with dedicated color badges.
+- The metadata service listens for Accepted submissions, parses problem details, validates them, and hands over control to the solution service.
+- The solution service triggers the hybrid solution parser, validates code criteria (UTF-8, size, content), creates the final AcceptedSubmission object, and dispatches it to the background.
+- The popup dynamically queries and displays context, live submission states, and completed accepted solution details (metadata, size, status).
 
 ## Permissions
 
