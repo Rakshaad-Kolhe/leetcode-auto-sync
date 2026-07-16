@@ -8,12 +8,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from config import LEETCODE_REPO_PATH
 
 
 FOLDER_ORDER = ("Easy", "Medium", "Hard")
+SOLUTIONS_DIR_NAME = "Leetcode-solutions"
 
 # Map known solution filenames back to language keys
 FILENAME_TO_LANG: Dict[str, str] = {
@@ -96,7 +97,7 @@ def scan_repository(repo_root: Optional[Path] = None) -> Tuple[List[ProblemEntry
     if repo_root is None:
         repo_root = Path(LEETCODE_REPO_PATH)
 
-    solutions_root = repo_root / "Leetcode-solutions"
+    solutions_root = repo_root / SOLUTIONS_DIR_NAME
     problems: List[ProblemEntry] = []
     stats = {"Total": 0, "Easy": 0, "Medium": 0, "Hard": 0}
 

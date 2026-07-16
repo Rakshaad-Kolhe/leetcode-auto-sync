@@ -150,5 +150,12 @@ of problems) and overwrites the repository README on each run. The generator
 is invoked automatically after a successful repository write (for example
 when a new problem is added via the `POST /submit` flow).
 
+Root README generation includes:
+
+- Repository scanning from `Easy/`, `Medium/`, and `Hard/`
+- Statistics for total solved and solved counts by difficulty
+- A problem index sorted by problem number
+- Deterministic regeneration from the filesystem source of truth
+
 See `server/repository_scanner.py` and `server/root_readme.py` for implementation
 details and configuration options.
