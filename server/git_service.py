@@ -1,8 +1,4 @@
-"""Reusable Git service foundation.
-
-This module encapsulates local Git operations behind a small Python API.
-It is intentionally not wired into the submission pipeline yet.
-"""
+"""Reusable Git service and synchronization pipeline."""
 
 from __future__ import annotations
 
@@ -20,29 +16,52 @@ logger = logging.getLogger(__name__)
 class GitServiceError(Exception):
     """Base class for expected Git service failures."""
 
+    code = "git_error"
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+    def to_dict(self) -> Dict[str, str]:
+        """Return a JSON-safe error payload."""
+
+        return {"code": self.code, "message": self.message}
+
 
 class GitNotInstalledError(GitServiceError):
     """Raised when the Git executable cannot be found."""
+
+    code = "git_not_installed"
 
 
 class InvalidRepositoryError(GitServiceError):
     """Raised when the configured path is not a Git repository."""
 
+    code = "invalid_repository"
+
 
 class DetachedHeadError(GitServiceError):
     """Raised when the repository is in detached HEAD state."""
+
+    code = "detached_head"
 
 
 class PushFailedError(GitServiceError):
     """Raised when Git push fails."""
 
+    code = "push_failed"
+
 
 class CommitFailedError(GitServiceError):
     """Raised when Git commit fails."""
 
+    code = "commit_failed"
+
 
 class MissingRemoteError(GitServiceError):
     """Raised when the configured remote is missing."""
+
+    code = "missing_remote"
 
 
 class GitService:
@@ -50,18 +69,66 @@ class GitService:
 
     def __init__(
         self,
-        repo_path: Path | str = LEETCODE_REPO_PATH,
+        repo_path: Path | str | None = None,
         *,
         auto_push: bool = AUTO_PUSH,
         remote_name: str = REMOTE_NAME,
         default_branch: str = DEFAULT_BRANCH,
         git_executable: str = "git",
     ) -> None:
-        self.repo_path = Path(repo_path).expanduser().resolve()
+        self.repo_path = Path(repo_path or LEETCODE_REPO_PATH).expanduser().resolve()
         self.auto_push = auto_push
         self.remote_name = remote_name
         self.default_branch = default_branch
         self.git_executable = git_executable
+
+    def sync(self, *, problem_id: int, title: str, is_new_problem: bool) -> Dict[str, Any]:
+        """Synchronize repository changes for a problem submission.
+
+        The method validates the repository, detects changes, stages changed
+        files, commits with a generated problem message, and pushes only when
+        AUTO_PUSH is enabled. Expected Git failures are converted to structured
+        JSON-safe results so generated repository files are preserved.
+        """
+
+        logger.info("git_sync_started", extra={"problem_id": problem_id})
+        try:
+            self.verify_repository()
+            branch = self.get_current_branch()["branch"]
+            status = self.get_status()
+
+            if status["clean"]:
+                logger.info("git_sync_completed", extra={"status": "no_changes", "branch": branch})
+                return {"status": "no_changes"}
+
+            staged = self.stage_changes()
+            message = generate_problem_commit_message(
+                problem_id,
+                title,
+                is_new_problem=is_new_problem,
+            )
+            commit = self.commit_changes(message)
+
+            pushed = False
+            if self.auto_push:
+                self.push_changes(branch)
+                pushed = True
+
+            result = {"branch": branch, "commit": commit["commit"], "pushed": pushed}
+            logger.info(
+                "git_sync_completed",
+                extra={
+                    "status": "committed",
+                    "branch": branch,
+                    "commit": commit["commit"],
+                    "pushed": pushed,
+                    "file_count": len(staged["files"]),
+                },
+            )
+            return result
+        except GitServiceError as exc:
+            logger.error("git_sync_failed", extra={"error_code": exc.code})
+            return {"status": "error", "error": exc.to_dict()}
 
     def verify_repository(self) -> Dict[str, Any]:
         """Verify that repo_path points to a valid Git working tree."""
