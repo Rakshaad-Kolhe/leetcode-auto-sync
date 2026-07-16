@@ -38,6 +38,7 @@ extension/
     submission_service.js Coordinates detector events and state updates
     metadata_service.js   Coordinates metadata parsing, validation, and triggers solution service
     solution_service.js   Coordinates solution code parsing, validation, and messaging
+    backend_service.js    Isolated client performing HTTP sync/health checks with FastAPI server
   models/
     submission_model.js   Schema and validator representing parsed problem details
     accepted_submission.js Schema and validator representing complete solution object
@@ -48,12 +49,13 @@ extension/
 
 Current behavior:
 
-- The background service worker caches page contexts, submission states, and complete AcceptedSubmission model details.
+- The background service worker caches page contexts, submission states, and complete AcceptedSubmission model details, and drives backend synchronization.
 - The content script runs on `https://leetcode.com/*`, initializes all observers, context detectors, and solution code scrapers.
 - The submission detector tracks submit interactions and DOM updates to coordinate state transitions.
 - The metadata service listens for Accepted submissions, parses problem details, validates them, and hands over control to the solution service.
 - The solution service triggers the hybrid solution parser, validates code criteria (UTF-8, size, content), creates the final AcceptedSubmission object, and dispatches it to the background.
-- The popup dynamically queries and displays context, live submission states, and completed accepted solution details (metadata, size, status).
+- The backend service acts as the isolated HTTP gateway to verify backend health and publish accepted payloads to `/submit`.
+- The popup dynamically queries and displays context, live submission states, completed accepted solution details, and real-time backend synchronization states.
 
 ## Permissions
 

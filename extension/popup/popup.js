@@ -30,6 +30,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const extractionStatusBadge = document.getElementById("extraction-status-display");
   const problemUrlLink = document.getElementById("problem-url-display");
 
+  // Sync DOM element selections
+  const backendConnBadge = document.getElementById("backend-conn-status");
+  const latestSyncBadge = document.getElementById("latest-sync-status");
+  const syncTimeContainer = document.getElementById("sync-time-container");
+  const latestSyncTimeText = document.getElementById("latest-sync-time");
+  const syncErrorContainer = document.getElementById("sync-error-container");
+  const latestSyncErrorText = document.getElementById("latest-sync-error");
+
   // Fetch extension manifest version
   try {
     const manifest = chrome.runtime.getManifest();
@@ -141,6 +149,70 @@ document.addEventListener("DOMContentLoaded", () => {
     metadataCard.classList.remove("hidden");
   }
 
+  /**
+   * Updates the synchronization panel with backend connection and sync result details.
+   * @param {boolean} connected - Is connection alive.
+   * @param {Object} latestSync - Cached synchronization outcome metrics.
+   */
+  function updateSyncUI(connected, latestSync) {
+    // 1. Connection status rendering
+    if (connected) {
+      backendConnBadge.textContent = "Connected";
+      backendConnBadge.className = "badge badge-easy";
+    } else {
+      backendConnBadge.textContent = "Disconnected";
+      backendConnBadge.className = "badge badge-hard";
+    }
+
+    // 2. Sync result rendering
+    if (!latestSync || latestSync.success === null) {
+      latestSyncBadge.textContent = "None";
+      latestSyncBadge.className = "badge badge-unknown";
+      syncTimeContainer.classList.add("hidden");
+      syncErrorContainer.classList.add("hidden");
+      return;
+    }
+
+    const { success, timestamp, error } = latestSync;
+
+    if (success === "SYNCING") {
+      latestSyncBadge.textContent = "Syncing...";
+      latestSyncBadge.className = "badge badge-contest"; // Reuses blue contest badge styling
+      syncTimeContainer.classList.add("hidden");
+      syncErrorContainer.classList.add("hidden");
+    } else if (success === true) {
+      latestSyncBadge.textContent = "Success";
+      latestSyncBadge.className = "badge badge-easy"; // Green success
+
+      if (timestamp) {
+        const time = new Date(timestamp).toLocaleTimeString();
+        latestSyncTimeText.textContent = time;
+        syncTimeContainer.classList.remove("hidden");
+      } else {
+        syncTimeContainer.classList.add("hidden");
+      }
+      syncErrorContainer.classList.add("hidden");
+    } else if (success === false) {
+      latestSyncBadge.textContent = "Failed";
+      latestSyncBadge.className = "badge badge-hard"; // Red failure
+
+      if (timestamp) {
+        const time = new Date(timestamp).toLocaleTimeString();
+        latestSyncTimeText.textContent = time;
+        syncTimeContainer.classList.remove("hidden");
+      } else {
+        syncTimeContainer.classList.add("hidden");
+      }
+
+      if (error) {
+        latestSyncErrorText.textContent = error;
+        syncErrorContainer.classList.remove("hidden");
+      } else {
+        syncErrorContainer.classList.add("hidden");
+      }
+    }
+  }
+
   // Request the active page context from background cache
   chrome.runtime.sendMessage({ type: MessageTypes.GET_CURRENT_CONTEXT }, (response) => {
     if (chrome.runtime.lastError) {
@@ -186,23 +258,61 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Request the synchronization status from background cache
+  chrome.runtime.sendMessage({ type: MessageTypes.GET_SYNC_STATUS }, (response) => {
+    if (chrome.runtime.lastError) {
+      Logger.warn("Failed to retrieve sync status from background worker:", chrome.runtime.lastError.message);
+      updateSyncUI(false, null);
+      return;
+    }
+
+    if (response && response.status === "success") {
+      updateSyncUI(response.connected, response.latestSync);
+    } else {
+      updateSyncUI(false, null);
+    }
+  });
+
   // Listen for live updates (e.g. while the popup is open)
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === MessageTypes.SUBMISSION_STARTED) {
       Logger.info("Popup: Received SUBMISSION_STARTED event");
       updateSubmissionUI({ status: "RUNNING", verdict: null });
-      // When starting a new submission, clear the old metadata display
+      // When starting a new submission, clear the old metadata and sync display
       updateMetadataUI(null);
+      updateSyncUI(false, null);
+      // Query sync status to update backend connection badge concurrently
+      chrome.runtime.sendMessage({ type: MessageTypes.GET_SYNC_STATUS }, (response) => {
+        if (response && response.status === "success") {
+          updateSyncUI(response.connected, null);
+        }
+      });
     } else if (message.type === MessageTypes.SUBMISSION_FINISHED) {
       Logger.info("Popup: Received SUBMISSION_FINISHED event with verdict", message.verdict);
       updateSubmissionUI({ status: "FINISHED", verdict: message.verdict });
     } else if (message.type === MessageTypes.SUBMISSION_ACCEPTED) {
       Logger.info("Popup: Received SUBMISSION_ACCEPTED event with metadata", message.payload);
       updateMetadataUI(message.payload);
+    } else if (message.type === MessageTypes.SYNC_STATUS_CHANGED) {
+      Logger.info("Popup: Received SYNC_STATUS_CHANGED event", message.payload);
+      // Refresh connect status alongside the sync updates
+      chrome.runtime.sendMessage({ type: MessageTypes.GET_SYNC_STATUS }, (response) => {
+        if (response && response.status === "success") {
+          updateSyncUI(response.connected, response.latestSync);
+        } else {
+          updateSyncUI(message.payload.success === true, message.payload);
+        }
+      });
     } else if (message.type === MessageTypes.PAGE_CHANGED) {
-      // If navigation occurs, reset popup view
+      // If navigation occurs, reset popup views
       updateSubmissionUI({ status: "IDLE", verdict: null });
       updateMetadataUI(null);
+      updateSyncUI(false, null);
+      chrome.runtime.sendMessage({ type: MessageTypes.GET_SYNC_STATUS }, (response) => {
+        if (response && response.status === "success") {
+          updateSyncUI(response.connected, response.latestSync);
+        }
+      });
     }
   });
 });

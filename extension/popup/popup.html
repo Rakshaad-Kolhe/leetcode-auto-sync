@@ -105,6 +105,31 @@
         </div>
       </section>
 
+      <!-- Backend Synchronization Card -->
+      <section class="context-card" aria-label="Sync Status">
+        <h2>Backend Synchronization</h2>
+        
+        <div class="context-item">
+          <span class="context-label">Backend Connection</span>
+          <span id="backend-conn-status" class="badge badge-unknown">Checking...</span>
+        </div>
+
+        <div class="context-item">
+          <span class="context-label">Latest Sync</span>
+          <span id="latest-sync-status" class="badge badge-unknown">None</span>
+        </div>
+
+        <div id="sync-time-container" class="context-item hidden">
+          <span class="context-label">Synced At</span>
+          <span id="latest-sync-time" class="slug-pill">--</span>
+        </div>
+
+        <div id="sync-error-container" class="context-item hidden">
+          <span class="context-label">Sync Error</span>
+          <span id="latest-sync-error" class="sync-error-text">--</span>
+        </div>
+      </section>
+
       <!-- Footer/Actions -->
       <footer class="popup-footer">
         <p class="description-text">Updates automatically as you use LeetCode.</p>

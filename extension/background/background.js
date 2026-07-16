@@ -1,10 +1,11 @@
-/**
- * @fileoverview Background service worker for LeetCode Auto Sync.
- * Manages cache of current page context and responds to popup queries.
- */
-
-// Load shared constants and logger utilities
-importScripts("../shared/constants.js", "../shared/logger.js");
+// Load shared constants, logger utilities, models, and backend service
+importScripts(
+  "../shared/constants.js",
+  "../shared/logger.js",
+  "../models/submission_model.js",
+  "../models/accepted_submission.js",
+  "../services/backend_service.js"
+);
 
 const { Logger, MessageTypes } = globalThis.LeetCodeAutoSync;
 
@@ -18,11 +19,104 @@ let activeSubmissionState = {
 };
 let latestAcceptedSubmission = null;
 
+// Cache for the latest synchronization result
+let latestSyncResult = {
+  success: null, // null (none), "SYNCING", true (success), false (failed)
+  timestamp: null,
+  error: null
+};
+let isSyncing = false;
+
 /**
  * Handles extension installation or startup events.
  */
 function handleInstalled() {
   Logger.info("LeetCode Auto Sync extension started/updated");
+}
+
+/**
+ * Sends a message to the popup if it is currently open.
+ * @param {Object} msg - The message to relay.
+ */
+function notifyPopup(msg) {
+  chrome.runtime.sendMessage(msg, () => {
+    // Access lastError to silence Chrome warnings when the popup is closed
+    const err = chrome.runtime.lastError;
+  });
+}
+
+/**
+ * Asynchronously dispatches the accepted solution to the local backend.
+ * @param {Object} submissionPayload - Raw data payload.
+ */
+async function performSync(submissionPayload) {
+  if (isSyncing) {
+    Logger.warn("Sync already in progress, skipping duplicate request");
+    return;
+  }
+  isSyncing = true;
+
+  Logger.log("Synchronization started");
+
+  // Notify popup that synchronization is starting
+  latestSyncResult = {
+    success: "SYNCING",
+    timestamp: new Date().toISOString(),
+    error: null
+  };
+  notifyPopup({
+    type: MessageTypes.SYNC_STATUS_CHANGED,
+    payload: latestSyncResult
+  });
+
+  try {
+    const { SubmissionModel, AcceptedSubmission, BackendService } = globalThis.LeetCodeAutoSync;
+
+    // 1. Reconstruct classes to perform deep validation
+    const metadata = new SubmissionModel(submissionPayload.metadata);
+    const submission = new AcceptedSubmission({
+      metadata: metadata,
+      code: submissionPayload.code,
+      extractedAt: submissionPayload.extractedAt
+    });
+
+    Logger.log("Payload validated");
+
+    // 2. Dispatch payload via BackendService client
+    const response = await BackendService.submitSubmission(submission);
+
+    latestSyncResult = {
+      success: response.success,
+      timestamp: new Date().toISOString(),
+      error: response.error
+    };
+
+    if (response.success) {
+      Logger.log("Synchronization completed");
+    } else {
+      Logger.log(`Synchronization failed: ${response.error}`);
+    }
+
+    // Broadcast synchronization completion to popup
+    notifyPopup({
+      type: MessageTypes.SYNC_STATUS_CHANGED,
+      payload: latestSyncResult
+    });
+  } catch (err) {
+    latestSyncResult = {
+      success: false,
+      timestamp: new Date().toISOString(),
+      error: err.message || "Sync processing error"
+    };
+    Logger.log(`Synchronization failed: ${latestSyncResult.error}`);
+
+    notifyPopup({
+      type: MessageTypes.SYNC_STATUS_CHANGED,
+      payload: latestSyncResult
+    });
+  } finally {
+    isSyncing = false;
+  }
 }
 
 /**
@@ -40,11 +134,12 @@ function handleMessage(message, sender, sendResponse) {
 
   // Handle PAGE_CHANGED message from Content Script
   if (message.type === MessageTypes.PAGE_CHANGED) {
-    // If navigating to a different page, reset active submission state cache
+    // If navigating to a different page, reset active submission state caches
     if (!activePageContext || activePageContext.url !== message.payload.url) {
       activeSubmissionState = { status: "IDLE", verdict: null };
       latestAcceptedSubmission = null;
-      Logger.info("Reset active submission and accepted metadata due to page navigation");
+      latestSyncResult = { success: null, timestamp: null, error: null };
+      Logger.info("Reset active submission and sync status due to page navigation");
     }
     activePageContext = message.payload;
     Logger.info("Context updated from Content Script:", activePageContext);
@@ -68,10 +163,14 @@ function handleMessage(message, sender, sendResponse) {
     return false;
   }
 
-  // Handle SUBMISSION_ACCEPTED message containing metadata
+  // Handle SUBMISSION_ACCEPTED message containing complete submission details
   if (message.type === MessageTypes.SUBMISSION_ACCEPTED) {
     latestAcceptedSubmission = message.payload;
-    Logger.info("Background: Cached accepted problem metadata:", latestAcceptedSubmission);
+    Logger.info("Background: Cached accepted submission details:", latestAcceptedSubmission);
+    
+    // Trigger backend synchronization flow asynchronously
+    performSync(latestAcceptedSubmission);
+
     sendResponse({ status: "received" });
     return false;
   }
@@ -104,6 +203,26 @@ function handleMessage(message, sender, sendResponse) {
       metadata: latestAcceptedSubmission
     });
     return false;
+  }
+
+  // Handle GET_SYNC_STATUS message from Popup
+  if (message.type === MessageTypes.GET_SYNC_STATUS) {
+    globalThis.LeetCodeAutoSync.BackendService.checkBackend()
+      .then((health) => {
+        sendResponse({
+          status: "success",
+          connected: health.success,
+          latestSync: latestSyncResult
+        });
+      })
+      .catch((err) => {
+        sendResponse({
+          status: "success",
+          connected: false,
+          latestSync: latestSyncResult
+        });
+      });
+    return true; // Keep channel open for async response
   }
 
   sendResponse({ status: "unknown_message" });
