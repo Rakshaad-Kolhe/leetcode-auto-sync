@@ -86,11 +86,15 @@ Example success response:
 
 ```json
 {
-  "status": "accepted",
-  "message": "Submission received successfully.",
+  "status": "created",
   "problem": {
     "id": 49,
     "title": "Group Anagrams"
+  },
+  "git": {
+    "branch": "main",
+    "commit": "abc1234",
+    "pushed": true
   }
 }
 ```
@@ -177,18 +181,44 @@ The service currently provides foundation methods to:
 - Commit staged changes
 - Push a branch to the configured remote
 
-This service is not invoked automatically yet. The `/submit` response remains
-unchanged; a later PR will integrate Git operations after repository writing
-and root README generation.
+The submission pipeline now invokes this service after repository writing and
+root README generation:
+
+```text
+POST /submit
+        |
+        v
+Validate Request
+        |
+        v
+Repository Writer
+        |
+        v
+Root README Generator
+        |
+        v
+Git Service
+        |
+        v
+JSON Response
+```
+
+When files changed, the service stages all changes, creates a problem-specific
+commit, and pushes only when `AUTO_PUSH` is enabled. When no files changed, the
+service skips both commit and push and returns `{"status": "no_changes"}`.
 
 ### Git Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `AUTO_PUSH` | `true` | Future integration flag for automatic pushes. |
+| `AUTO_PUSH` | `true` | Push successful Git commits when enabled. |
 | `REMOTE_NAME` | `origin` | Remote used by `GitService.push_changes()`. |
 | `DEFAULT_BRANCH` | `main` | Expected default branch used for branch metadata. |
 | `LEETCODE_REPO_PATH` | project root | Local repository root used by default. |
+
+If `AUTO_PUSH=false`, submissions still write files, regenerate the README,
+stage changes, and create a local commit. The API response reports
+`"pushed": false`.
 
 ### Git Errors
 
@@ -204,6 +234,35 @@ exceptions:
 
 Structured logging records repository validation, current branch, repository
 status, commit hashes, and push results. Credentials are never logged.
+
+If repository generation succeeds but Git fails, generated files are preserved
+and the response includes structured Git error details instead of a stack trace:
+
+```json
+{
+  "status": "created",
+  "problem": {
+    "id": 49,
+    "title": "Group Anagrams"
+  },
+  "git": {
+    "status": "error",
+    "error": {
+      "code": "missing_remote",
+      "message": "Git remote 'origin' is not configured."
+    }
+  }
+}
+```
+
+Common Git error codes include:
+
+- `git_not_installed`: Git is not available on `PATH`.
+- `invalid_repository`: `LEETCODE_REPO_PATH` is not a Git repository.
+- `detached_head`: the repository is not currently on a branch.
+- `missing_remote`: the configured remote is not available.
+- `commit_failed`: Git could not create the commit.
+- `push_failed`: Git could not push to the configured remote.
 
 ### Commit Messages
 
