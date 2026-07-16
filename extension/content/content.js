@@ -4,13 +4,14 @@
  */
 
 (() => {
-  const { Logger, PageContext, Observer, MessageTypes, SubmissionService, SubmissionState, MetadataService } = window.LeetCodeAutoSync;
+  const { Logger, PageContext, Observer, MessageTypes, SubmissionService, SubmissionState, MetadataService, SolutionService } = window.LeetCodeAutoSync;
 
   Logger.info("Content script loaded");
 
-  // Initialize the submission monitoring and metadata services
+  // Initialize the submission monitoring, metadata, and solution services
   SubmissionService.init();
   MetadataService.init();
+  SolutionService.init();
 
   /**
    * Handles page changes: determines context, logs it, and messages background.
@@ -39,6 +40,10 @@
     // Re-initialize metadata service observers and event bindings
     MetadataService.destroy();
     MetadataService.init();
+
+    // Re-initialize solution service observers and event bindings
+    SolutionService.destroy();
+    SolutionService.init();
 
     // Send page context to background worker
     chrome.runtime.sendMessage({

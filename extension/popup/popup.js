@@ -26,6 +26,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const problemIdText = document.getElementById("problem-id-display");
   const problemDifficultyBadge = document.getElementById("problem-difficulty-display");
   const problemLanguageText = document.getElementById("problem-language-display");
+  const solutionSizeText = document.getElementById("solution-size-display");
+  const extractionStatusBadge = document.getElementById("extraction-status-display");
   const problemUrlLink = document.getElementById("problem-url-display");
 
   // Fetch extension manifest version
@@ -105,15 +107,16 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /**
-   * Updates the problem details card with extracted metadata.
-   * @param {Object|null} metadata - Extracted metadata model.
+   * Updates the problem details card with extracted metadata and solution size.
+   * @param {Object|null} submission - Extracted AcceptedSubmission model.
    */
-  function updateMetadataUI(metadata) {
-    if (!metadata) {
+  function updateMetadataUI(submission) {
+    if (!submission || !submission.metadata) {
       metadataCard.classList.add("hidden");
       return;
     }
 
+    const { metadata, code } = submission;
     const { id, title, difficulty, language, url } = metadata;
 
     problemTitleText.textContent = title;
@@ -125,6 +128,11 @@ document.addEventListener("DOMContentLoaded", () => {
     problemDifficultyBadge.className = `badge badge-${difficulty.toLowerCase()}`;
 
     problemLanguageText.textContent = language;
+
+    // Display solution length and success status
+    solutionSizeText.textContent = code ? `${code.length} characters` : "0 characters";
+    extractionStatusBadge.textContent = "Success";
+    extractionStatusBadge.className = "badge badge-easy"; // reusing green Easy badge for Success
 
     problemUrlLink.href = url;
     problemUrlLink.textContent = url;
