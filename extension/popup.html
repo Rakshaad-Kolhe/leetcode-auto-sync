@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LeetCode Auto Sync</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header class="popup-header">
+        <img class="popup-icon" src="icons/icon-48.png" alt="" width="48" height="48">
+        <div>
+          <h1>LeetCode Auto Sync</h1>
+          <p id="version" class="version">Version 0.1.0</p>
+        </div>
+      </header>
+
+      <section class="status-panel" aria-label="Extension status">
+        <span class="status-label">Backend</span>
+        <span id="backend-status" class="status-value">Not Connected</span>
+      </section>
+
+      <button id="check-connection" class="primary-action" type="button">
+        Check Connection
+      </button>
+
+      <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
