@@ -16,6 +16,9 @@
         "shared/logger.js",
         "content/page_context.js",
         "content/observer.js",
+        "submission/submission_state.js",
+        "submission/submission_detector.js",
+        "services/submission_service.js",
         "content/content.js"
       ],
       "run_at": "document_idle"

@@ -277,3 +277,98 @@ h1 {
   color: #71717a;
   margin: 0;
 }
+
+/* Submission States */
+.state-idle {
+  background: rgba(113, 113, 122, 0.1);
+  color: #a1a1aa;
+  border: 1px solid rgba(113, 113, 122, 0.3);
+}
+
+.state-submitting {
+  background: rgba(234, 179, 8, 0.1);
+  color: #eab308;
+  border: 1px solid rgba(234, 179, 8, 0.3);
+}
+
+.state-running {
+  background: rgba(14, 165, 233, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(14, 165, 233, 0.4);
+  animation: pulse-running 1.5s infinite alternate;
+}
+
+.state-finished {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+@keyframes pulse-running {
+  0% { box-shadow: 0 0 2px rgba(14, 165, 233, 0.2); opacity: 0.8; }
+  100% { box-shadow: 0 0 8px rgba(14, 165, 233, 0.5); opacity: 1; }
+}
+
+/* Verdict Badges */
+.verdict-accepted {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  font-weight: 700;
+}
+
+.verdict-wrong-answer {
+  background: rgba(244, 63, 94, 0.2);
+  color: #f43f5e;
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  font-weight: 700;
+}
+
+.verdict-time-limit-exceeded {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.verdict-memory-limit-exceeded {
+  background: rgba(234, 179, 8, 0.2);
+  color: #eab308;
+  border: 1px solid rgba(234, 179, 8, 0.4);
+}
+
+.verdict-runtime-error {
+  background: rgba(217, 70, 239, 0.2);
+  color: #d946ef;
+  border: 1px solid rgba(217, 70, 239, 0.4);
+}
+
+.verdict-compile-error {
+  background: rgba(100, 116, 139, 0.2);
+  color: #94a3b8;
+  border: 1px solid rgba(100, 116, 139, 0.4);
+}
+
+.verdict-output-limit-exceeded {
+  background: rgba(249, 115, 22, 0.2);
+  color: #f97316;
+  border: 1px solid rgba(249, 115, 22, 0.4);
+}
+
+.verdict-presentation-error {
+  background: rgba(99, 102, 241, 0.2);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+}
+
+.verdict-judging {
+  background: rgba(14, 165, 233, 0.1);
+  color: #0ea5e9;
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  font-style: italic;
+}
+
+.verdict-unknown {
+  background: rgba(113, 113, 122, 0.2);
+  color: #71717a;
+  border: 1px solid rgba(113, 113, 122, 0.4);
+}

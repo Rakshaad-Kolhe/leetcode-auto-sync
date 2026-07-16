@@ -19,26 +19,32 @@ extension/
   icons/               Placeholder extension icons
   README.md            Extension documentation
   background/
-    background.js      Service worker coordinating page context changes
+    background.js      Service worker caching page context and submission state
   content/
-    content.js         Main content script coordinating observer and page context
+    content.js         Main content script coordinates context and submission services
     page_context.js    Page classification and slug extraction utility
     observer.js        Lightweight SPA navigation and history change observer
   popup/
     popup.html         Popup user interface markup
-    popup.js           Popup behavior, querying background for context
-    styles.css         Redesigned dark dashboard theme styles
+    popup.js           Popup behavior, querying background and rendering states live
+    styles.css         Redesigned dark dashboard theme and status badge styles
   shared/
-    constants.js       Shared PageTypes, MessageTypes, and endpoints
+    constants.js       Shared PageTypes, MessageTypes, Verdicts, and endpoints
     logger.js          Prefixed, toggleable logger utility
+  submission/
+    submission_state.js Pure state machine for submission status tracking
+    submission_detector.js Monitors DOM mutations, clicks, and shortcuts for status
+  services/
+    submission_service.js Coordinates detector events and state updates
 ```
 
 Current behavior:
 
-- The background service worker caches page contexts, listens to `PAGE_CHANGED` events, and responds to popup queries.
-- The content script runs on `https://leetcode.com/*`, initializes the observer, determines context, logs it, and messages the background.
-- The observer detects SPA navigation, browser back/forward history navigation, and direct page changes without duplications.
-- The popup displays the extension status, current page type (with appropriate badge color), problem slug (if applicable), and current URL.
+- The background service worker caches page contexts and submission states, handles changes, and serves data to the popup.
+- The content script runs on `https://leetcode.com/*`, initializes the context observer and submission detector services.
+- The submission detector listens to button clicks, Ctrl/Cmd+Shift+Enter shortcuts, and DOM changes to identify judging status.
+- The submission state machine handles transitions between `IDLE`, `SUBMITTING`, `RUNNING`, and `FINISHED`.
+- The popup displays the current page context, live submission states, and final verdicts with distinct badge colors.
 
 ## Permissions
 

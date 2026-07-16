@@ -50,9 +50,24 @@
         </div>
       </section>
 
+      <!-- Submission Status Card -->
+      <section class="context-card" aria-label="Submission Status">
+        <h2>Submission Status</h2>
+        
+        <div class="context-item">
+          <span class="context-label">State</span>
+          <span id="submission-state" class="badge state-idle">IDLE</span>
+        </div>
+
+        <div id="verdict-container" class="context-item hidden">
+          <span class="context-label">Verdict</span>
+          <span id="submission-verdict" class="badge badge-unknown">Unknown</span>
+        </div>
+      </section>
+
       <!-- Footer/Actions -->
       <footer class="popup-footer">
-        <p class="description-text">Page context updates automatically on navigation.</p>
+        <p class="description-text">Updates automatically as you use LeetCode.</p>
       </footer>
     </main>
     <script src="../shared/constants.js"></script>
