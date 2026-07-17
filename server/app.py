@@ -15,7 +15,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from starlette.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
-from config import HOST, LEETCODE_REPO_PATH, LOG_LEVEL, PORT
+from config import HOST, LEETCODE_REPO_PATH, LOG_LEVEL, PORT, ENV, ALLOWED_EXTENSION_IDS
 from schemas import Submission
 from submit_service import process_submission
 
@@ -81,13 +81,25 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title=SERVICE_NAME, version=SERVICE_VERSION, lifespan=lifespan)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origin_regex="chrome-extension://.*",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if ENV == "development":
+    logger.info("CORS: configured for development (allowing all chrome extensions)")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex="chrome-extension://.*",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    allowed_origins = [f"chrome-extension://{ext_id}" for ext_id in ALLOWED_EXTENSION_IDS]
+    logger.info("CORS: configured for production", extra={"allowed_origins": allowed_origins})
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next: Any) -> Response:

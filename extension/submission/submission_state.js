@@ -26,12 +26,13 @@
    * Triggers callbacks when state transitions occur.
    * @param {string} fromState - Old state.
    * @param {string} toState - New state.
+   * @param {any} [payload] - Optional metadata payload (e.g. verdict).
    */
-  function notifyListeners(fromState, toState) {
-    Logger.info(`Submission State Transition: ${fromState} -> ${toState}`);
+  function notifyListeners(fromState, toState, payload) {
+    Logger.info(`Submission State Transition: ${fromState} -> ${toState} (payload: ${payload})`);
     stateChangedListeners.forEach((listener) => {
       try {
-        listener(toState, fromState);
+        listener(toState, fromState, payload);
       } catch (err) {
         Logger.error("Error in submission state change listener:", err);
       }
@@ -41,12 +42,13 @@
   /**
    * Safely transitions state if it has changed.
    * @param {string} toState - The destination state.
+   * @param {any} [payload] - Optional metadata payload.
    */
-  function transitionTo(toState) {
+  function transitionTo(toState, payload) {
     if (currentState === toState) return;
     const oldState = currentState;
     currentState = toState;
-    notifyListeners(oldState, toState);
+    notifyListeners(oldState, toState, payload);
   }
 
   const SubmissionState = {
@@ -81,7 +83,7 @@
     finishSubmission(verdict) {
       if (currentState === States.RUNNING || currentState === States.SUBMITTING) {
         currentVerdict = verdict;
-        transitionTo(States.FINISHED);
+        transitionTo(States.FINISHED, verdict);
       }
     },
 
@@ -111,20 +113,22 @@
 
     /**
      * Registers a listener callback that triggers on state changes.
-     * @param {function(string, string): void} callback - Listener.
+     * Returns an unsubscribe function.
+     * @param {function(string, string, any): void} callback - Listener.
+     * @returns {function(): void} Unsubscribe function.
      */
     onStateChanged(callback) {
       if (typeof callback === "function") {
         stateChangedListeners.push(callback);
+        return () => {
+          const index = stateChangedListeners.indexOf(callback);
+          if (index !== -1) {
+            stateChangedListeners.splice(index, 1);
+            Logger.info("SubmissionState: Unsubscribed state listener successfully");
+          }
+        };
       }
-    },
-
-    /**
-     * Clears all registered state change listeners.
-     */
-    clearListeners() {
-      stateChangedListeners.length = 0;
-      Logger.info("SubmissionState: Cleared all registered listeners");
+      return () => {};
     }
   };
 

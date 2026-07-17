@@ -16,3 +16,13 @@ LEETCODE_REPO_PATH = Path(
 AUTO_PUSH = os.getenv("AUTO_PUSH", "true").strip().lower() in {"1", "true", "yes", "on"}
 REMOTE_NAME = os.getenv("REMOTE_NAME", "origin")
 DEFAULT_BRANCH = os.getenv("DEFAULT_BRANCH", "main")
+
+# Environment mode ('development' or 'production')
+ENV = os.getenv("ENV", "production").strip().lower()
+
+# Comma-separated list of allowed chrome extension IDs for production CORS policy
+ALLOWED_EXTENSION_IDS = [
+	ext_id.strip()
+	for ext_id in os.getenv("ALLOWED_EXTENSION_IDS", "khigfipcgfodpnfeenijjjjggipkibhk").split(",")
+	if ext_id.strip()
+]

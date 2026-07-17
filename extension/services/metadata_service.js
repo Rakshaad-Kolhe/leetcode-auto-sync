@@ -55,6 +55,8 @@
     }
   }
 
+  let unsubscribeStateListener = null;
+
   const MetadataService = {
     /**
      * Initializes the service, hooks into the submission state machine changes.
@@ -64,8 +66,8 @@
       initialized = true;
 
       // Subscribe to submission state transitions
-      SubmissionState.onStateChanged((state, _oldState) => {
-        if (state === SubmissionState.States.FINISHED && SubmissionState.getVerdict() === Verdicts.ACCEPTED) {
+      unsubscribeStateListener = SubmissionState.onStateChanged((state, _oldState, verdict) => {
+        if (state === SubmissionState.States.FINISHED && verdict === Verdicts.ACCEPTED) {
           handleSubmissionAccepted();
         }
       });
@@ -79,8 +81,11 @@
     destroy() {
       if (!initialized) return;
       initialized = false;
-      // Clear state machine listeners to avoid duplication and leaks
-      SubmissionState.clearListeners();
+      // Clean up explicit state machine listener to avoid leaks and duplicates
+      if (unsubscribeStateListener) {
+        unsubscribeStateListener();
+        unsubscribeStateListener = null;
+      }
       Logger.info("Metadata extraction service destroyed");
     }
   };
