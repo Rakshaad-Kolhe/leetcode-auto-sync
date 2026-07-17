@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const slugContainer = document.getElementById("slug-container");
   const problemSlugText = document.getElementById("problem-slug");
   const currentUrlText = document.getElementById("current-url");
-  
+
   // Submission DOM element selections
   const submissionStateBadge = document.getElementById("submission-state");
   const verdictContainer = document.getElementById("verdict-container");
@@ -38,6 +38,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const checkBackendBtn = document.getElementById("check-backend-btn");
   const retrySyncBtn = document.getElementById("retry-sync-btn");
 
+  // Backend Synchronization DOM element selections
+  const backendConnBadge = document.getElementById("backend-conn-status");
+
+  const latestSyncBadge = document.getElementById("latest-sync-status");
+
+  const latestSyncTimeText =
+    document.getElementById("latest-sync-time");
+
+  const latestSyncErrorText =
+    document.getElementById("latest-sync-error");
+
+  const syncTimeContainer =
+    document.getElementById("sync-time-container");
+
+  const syncErrorContainer =
+    document.getElementById("sync-error-container");
   // Diagnostics DOM element selections
   const diagExtVersionText = document.getElementById("diag-ext-version");
   const diagBackVersionText = document.getElementById("diag-back-version");
@@ -306,11 +322,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     chrome.storage.local.set({ backendUrl: url }, () => {
       diagState.backUrl = url;
-      
+
       const originalText = saveSettingsBtn.textContent;
       saveSettingsBtn.textContent = "Saved!";
       saveSettingsBtn.className = "badge badge-easy";
-      
+
       setTimeout(() => {
         saveSettingsBtn.textContent = originalText;
         saveSettingsBtn.className = "badge badge-contest";

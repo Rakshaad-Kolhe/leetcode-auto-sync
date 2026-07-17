@@ -13,6 +13,9 @@
   MetadataService.init();
   SolutionService.init();
 
+  let currentSlug = null;
+  let currentPageType = null;
+
   /**
    * Handles page changes: determines context, logs it, and messages background.
    * @param {string} url - The current URL.
@@ -30,20 +33,32 @@
     // Log the page context object as per requirements
     Logger.log("Page context determined:", context);
 
-    // Reset submission state on navigation so states do not leak between problems
-    SubmissionState.reset();
+    // Only perform complete state resets and service re-initializations if the actual problem changes
+    const hasProblemChanged = (slug !== currentSlug) || (pageType !== currentPageType);
 
-    // Re-initialize submission service observers and event bindings for the new page context
-    SubmissionService.destroy();
-    SubmissionService.init();
+    if (hasProblemChanged) {
+      Logger.info(`Page Context Changed: reset and re-initialize services (Slug: ${currentSlug} -> ${slug}, PageType: ${currentPageType} -> ${pageType})`);
+      
+      currentSlug = slug;
+      currentPageType = pageType;
 
-    // Re-initialize metadata service observers and event bindings
-    MetadataService.destroy();
-    MetadataService.init();
+      // Reset submission state on navigation so states do not leak between problems
+      SubmissionState.reset();
 
-    // Re-initialize solution service observers and event bindings
-    SolutionService.destroy();
-    SolutionService.init();
+      // Re-initialize submission service observers and event bindings for the new page context
+      SubmissionService.destroy();
+      SubmissionService.init();
+
+      // Re-initialize metadata service observers and event bindings
+      MetadataService.destroy();
+      MetadataService.init();
+
+      // Re-initialize solution service observers and event bindings
+      SolutionService.destroy();
+      SolutionService.init();
+    } else {
+      Logger.info("Page context URL updated within the same problem context. Skipping state reset and service re-initialization.");
+    }
 
     // Send page context to background worker
     chrome.runtime.sendMessage({

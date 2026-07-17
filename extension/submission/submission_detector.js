@@ -82,16 +82,15 @@
 
   /**
    * Scans the document for active "Pending" or "Judging" states.
+   * Supports elements containing nesting or trailing ellipsis.
    * @returns {boolean} True if running.
    */
   function checkRunningState() {
     const elements = document.querySelectorAll("span, div, p, h3, h4");
     for (const el of elements) {
-      if (el.children.length === 0) {
-        const text = el.textContent.trim();
-        if (text === "Pending" || text === "Judging") {
-          return true;
-        }
+      const text = el.textContent.trim().replace(/\.+$/, "");
+      if (text === "Pending" || text === "Judging") {
+        return true;
       }
     }
     return false;
@@ -104,12 +103,10 @@
   function detectVerdict() {
     const elements = document.querySelectorAll("span, div, p, h3, h4, a");
     for (const el of elements) {
-      if (el.children.length === 0) {
-        const text = el.textContent.trim();
-        for (const val of Object.values(Verdicts)) {
-          if (val !== Verdicts.UNKNOWN && text === val) {
-            return val;
-          }
+      const text = el.textContent.trim();
+      for (const val of Object.values(Verdicts)) {
+        if (val !== Verdicts.UNKNOWN && text === val) {
+          return val;
         }
       }
     }
@@ -121,9 +118,9 @@
    * Throttled using requestAnimationFrame to prevent performance issues.
    */
   function handleDOMMutation() {
-    // Performance Guard: Short-circuit DOM queries if submission is not active
-    const state = LeetCodeAutoSync.SubmissionState ? LeetCodeAutoSync.SubmissionState.getState() : "IDLE";
-    if (state !== "SUBMITTING" && state !== "RUNNING") {
+    // Fast synchronous guard to avoid scheduling frames when idle
+    const fastState = LeetCodeAutoSync.SubmissionState ? LeetCodeAutoSync.SubmissionState.getState() : "IDLE";
+    if (fastState !== "SUBMITTING" && fastState !== "RUNNING") {
       return;
     }
 
@@ -131,6 +128,13 @@
     isScanning = true;
 
     requestAnimationFrame(() => {
+      // Re-read state machine value within frame callback to prevent stale closures
+      const state = LeetCodeAutoSync.SubmissionState ? LeetCodeAutoSync.SubmissionState.getState() : "IDLE";
+      if (state !== "SUBMITTING" && state !== "RUNNING") {
+        isScanning = false;
+        return;
+      }
+
       const isRunning = checkRunningState();
       
       if (isRunning) {

@@ -79,6 +79,8 @@
     destroy() {
       if (!initialized) return;
       initialized = false;
+      // Clear state machine listeners to avoid duplication and leaks
+      SubmissionState.clearListeners();
       Logger.info("Metadata extraction service destroyed");
     }
   };

@@ -134,12 +134,14 @@ function handleMessage(message, sender, sendResponse) {
 
   // Handle PAGE_CHANGED message from Content Script
   if (message.type === MessageTypes.PAGE_CHANGED) {
-    // If navigating to a different page, reset active submission state caches
-    if (!activePageContext || activePageContext.url !== message.payload.url) {
+    const prevSlug = activePageContext ? activePageContext.slug : null;
+    const newSlug = message.payload ? message.payload.slug : null;
+
+    // Reset active submission state ONLY if the actual problem slug has changed.
+    // Do NOT wipe latestAcceptedSubmission to preserve manual retry options across navigation.
+    if (prevSlug !== newSlug) {
       activeSubmissionState = { status: "IDLE", verdict: null };
-      latestAcceptedSubmission = null;
-      latestSyncResult = { success: null, timestamp: null, error: null };
-      Logger.info("Reset active submission and sync status due to page navigation");
+      Logger.info(`Reset active submission state due to problem context change (Slug: ${prevSlug} -> ${newSlug})`);
     }
     activePageContext = message.payload;
     Logger.info("Context updated from Content Script:", activePageContext);

@@ -41,7 +41,7 @@
         if (state === SubmissionState.States.IDLE) {
           Logger.log("Submission Started");
           SubmissionState.startSubmission();
-          
+
           messageBackground({
             type: MessageTypes.SUBMISSION_STARTED
           });
@@ -71,7 +71,6 @@
           });
 
           // Reset the state machine back to IDLE to prepare for the next submission attempt
-          SubmissionState.reset();
         }
       });
 

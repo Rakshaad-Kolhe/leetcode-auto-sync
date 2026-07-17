@@ -56,10 +56,10 @@
     States,
 
     /**
-     * Starts the submission flow. Transitions from IDLE to SUBMITTING.
+     * Starts the submission flow. Transitions from IDLE or FINISHED to SUBMITTING.
      */
     startSubmission() {
-      if (currentState === States.IDLE) {
+      if (currentState === States.IDLE || currentState === States.FINISHED) {
         currentVerdict = null;
         transitionTo(States.SUBMITTING);
       }
@@ -117,6 +117,14 @@
       if (typeof callback === "function") {
         stateChangedListeners.push(callback);
       }
+    },
+
+    /**
+     * Clears all registered state change listeners.
+     */
+    clearListeners() {
+      stateChangedListeners.length = 0;
+      Logger.info("SubmissionState: Cleared all registered listeners");
     }
   };
 

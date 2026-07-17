@@ -14,7 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from starlette.responses import Response
-
+from fastapi.middleware.cors import CORSMiddleware
 from config import HOST, LEETCODE_REPO_PATH, LOG_LEVEL, PORT
 from schemas import Submission
 from submit_service import process_submission
@@ -81,6 +81,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title=SERVICE_NAME, version=SERVICE_VERSION, lifespan=lifespan)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex="chrome-extension://.*",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next: Any) -> Response:
