@@ -55,7 +55,7 @@
    * Current extension version.
    * @type {string}
    */
-  LeetCodeAutoSync.VERSION = "0.1.0";
+  LeetCodeAutoSync.VERSION = "1.0.0";
 
   /**
    * Future API endpoints for synchronization backend.

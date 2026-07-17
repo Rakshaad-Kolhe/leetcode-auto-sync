@@ -56,7 +56,7 @@ async function performSync(submissionPayload) {
   }
   isSyncing = true;
 
-  Logger.log("Synchronization started");
+  Logger.info("Synchronization started");
 
   // Notify popup that synchronization is starting
   latestSyncResult = {
@@ -80,7 +80,7 @@ async function performSync(submissionPayload) {
       extractedAt: submissionPayload.extractedAt
     });
 
-    Logger.log("Payload validated");
+    Logger.info("Payload validated");
 
     // 2. Dispatch payload via BackendService client
     const response = await BackendService.submitSubmission(submission);
@@ -92,9 +92,9 @@ async function performSync(submissionPayload) {
     };
 
     if (response.success) {
-      Logger.log("Synchronization completed");
+      Logger.info("Synchronization completed");
     } else {
-      Logger.log(`Synchronization failed: ${response.error}`);
+      Logger.error(`Synchronization failed: ${response.error}`);
     }
 
     // Broadcast synchronization completion to popup
@@ -108,7 +108,7 @@ async function performSync(submissionPayload) {
       timestamp: new Date().toISOString(),
       error: err.message || "Sync processing error"
     };
-    Logger.log(`Synchronization failed: ${latestSyncResult.error}`);
+    Logger.error(`Synchronization failed: ${latestSyncResult.error}`);
 
     notifyPopup({
       type: MessageTypes.SYNC_STATUS_CHANGED,
@@ -175,6 +175,19 @@ function handleMessage(message, sender, sendResponse) {
     return false;
   }
 
+  // Handle RETRY_LAST_SYNC message from Popup
+  if (message.type === "RETRY_LAST_SYNC") {
+    if (latestAcceptedSubmission) {
+      Logger.info("Background: Retrying synchronization for last accepted submission");
+      performSync(latestAcceptedSubmission);
+      sendResponse({ status: "success", started: true });
+    } else {
+      Logger.warn("Background: Retry requested but no accepted submission cached");
+      sendResponse({ status: "error", error: "No cached submission available to retry" });
+    }
+    return false;
+  }
+
   // Handle GET_CURRENT_CONTEXT message from Popup
   if (message.type === MessageTypes.GET_CURRENT_CONTEXT) {
     Logger.info("Popup requested page context. Sending:", activePageContext);
@@ -212,6 +225,7 @@ function handleMessage(message, sender, sendResponse) {
         sendResponse({
           status: "success",
           connected: health.success,
+          backendVersion: health.success && health.data ? health.data.version : null,
           latestSync: latestSyncResult
         });
       })
@@ -219,6 +233,7 @@ function handleMessage(message, sender, sendResponse) {
         sendResponse({
           status: "success",
           connected: false,
+          backendVersion: null,
           latestSync: latestSyncResult
         });
       });

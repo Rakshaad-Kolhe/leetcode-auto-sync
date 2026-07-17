@@ -6,25 +6,42 @@
 ((global) => {
   const LeetCodeAutoSync = global.LeetCodeAutoSync || {};
 
-  // Global toggle to enable/disable logging
-  let loggingEnabled = true;
+  /**
+   * Log level numeric weights.
+   * @enum {number}
+   */
+  const Levels = Object.freeze({
+    DEBUG: 0,
+    INFO: 1,
+    WARN: 2,
+    ERROR: 3
+  });
+
+  // CONFIGURE CURRENT LOG LEVEL HERE IN ONE PLACE
+  let currentLogLevel = Levels.INFO;
 
   /**
    * Logger utility containing prefixing wrapper methods.
    */
   const Logger = {
     /**
-     * Enables extension logging.
+     * Sets the active log level.
+     * @param {keyof typeof Levels} levelName
      */
-    enable() {
-      loggingEnabled = true;
+    setLevel(levelName) {
+      if (levelName in Levels) {
+        currentLogLevel = Levels[levelName];
+      }
     },
 
     /**
-     * Disables extension logging.
+     * Logs debug message.
+     * @param {...*} args
      */
-    disable() {
-      loggingEnabled = false;
+    debug(...args) {
+      if (currentLogLevel <= Levels.DEBUG) {
+        console.debug("[LeetCode Auto Sync] [DEBUG]", ...args);
+      }
     },
 
     /**
@@ -32,8 +49,8 @@
      * @param {...*} args
      */
     info(...args) {
-      if (loggingEnabled) {
-        console.info("[LeetCode Auto Sync]", ...args);
+      if (currentLogLevel <= Levels.INFO) {
+        console.info("[LeetCode Auto Sync] [INFO]", ...args);
       }
     },
 
@@ -42,8 +59,8 @@
      * @param {...*} args
      */
     log(...args) {
-      if (loggingEnabled) {
-        console.log("[LeetCode Auto Sync]", ...args);
+      if (currentLogLevel <= Levels.INFO) {
+        console.log("[LeetCode Auto Sync] [INFO]", ...args);
       }
     },
 
@@ -52,8 +69,8 @@
      * @param {...*} args
      */
     warn(...args) {
-      if (loggingEnabled) {
-        console.warn("[LeetCode Auto Sync]", ...args);
+      if (currentLogLevel <= Levels.WARN) {
+        console.warn("[LeetCode Auto Sync] [WARN]", ...args);
       }
     },
 
@@ -62,8 +79,8 @@
      * @param {...*} args
      */
     error(...args) {
-      if (loggingEnabled) {
-        console.error("[LeetCode Auto Sync]", ...args);
+      if (currentLogLevel <= Levels.ERROR) {
+        console.error("[LeetCode Auto Sync] [ERROR]", ...args);
       }
     }
   };

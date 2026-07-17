@@ -20,7 +20,7 @@ from schemas import Submission
 from submit_service import process_submission
 
 SERVICE_NAME = "leetcode-auto-sync"
-SERVICE_VERSION = "0.1.0"
+SERVICE_VERSION = "1.0.0"
 
 
 class JsonFormatter(logging.Formatter):
