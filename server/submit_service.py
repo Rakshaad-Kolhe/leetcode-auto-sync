@@ -1,17 +1,17 @@
-"""Business logic for processing submissions.
-
-Kept deliberately small for PR #2 — returns an acknowledgement payload
-and isolates business rules from routing concerns.
-"""
+"""Business logic for processing submissions."""
 
 from __future__ import annotations
 
+import logging
 from typing import Dict
 
+from config import LEETCODE_REPO_PATH
 from git_service import GitService
-from schemas import Submission
 from repository_writer import write_submission
 from root_readme import generate_readme
+from schemas import Submission
+
+logger = logging.getLogger(__name__)
 
 
 def process_submission(submission: Submission) -> Dict[str, object]:
@@ -24,17 +24,28 @@ def process_submission(submission: Submission) -> Dict[str, object]:
     result = write_submission(submission)
 
     # After a successful write, regenerate the root README deterministically
-    # by scanning the repository and writing the root README file.
-    # Any failures here should propagate so callers are aware of issues.
-    generate_readme()
+    generate_readme(LEETCODE_REPO_PATH)
 
     git_result = GitService().sync(
         problem_id=submission.id,
         title=submission.title,
         is_new_problem=result["status"] == "created",
     )
+
     if git_result.get("status") == "no_changes":
+        logger.info("Commit:\nno_changes")
+        logger.info("Push:\nskipped")
         return {"status": "no_changes"}
+
+    commit_hash = git_result.get("commit", "none")
+    pushed = git_result.get("pushed", False)
+    push_status = "successful" if pushed else "disabled"
+
+    if git_result.get("status") == "error":
+        push_status = "failed"
+
+    logger.info(f"Commit:\n{commit_hash}")
+    logger.info(f"Push:\n{push_status}")
 
     result["git"] = git_result
     return result

@@ -11,7 +11,7 @@ HOST = os.getenv("HOST", "127.0.0.1")
 PORT = int(os.getenv("PORT", "8000"))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 LEETCODE_REPO_PATH = Path(
-	os.getenv("LEETCODE_REPO_PATH", str(PROJECT_ROOT)),
+	os.getenv("LEETCODE_REPO_PATH", str(PROJECT_ROOT / "Leetcode-solutions")),
 ).expanduser().resolve()
 AUTO_PUSH = os.getenv("AUTO_PUSH", "true").strip().lower() in {"1", "true", "yes", "on"}
 REMOTE_NAME = os.getenv("REMOTE_NAME", "origin")

@@ -1,68 +1,80 @@
 """Filesystem utilities to create and update a local LeetCode repository layout.
 
-This module is responsible for creating the `Leetcode-solutions/` layout, writing
-solution files and per-problem README files. It is intentionally isolated from
-routing and business logic so it can be tested independently.
+This module is responsible for writing solution files directly under difficulty
+folders (e.g. `Easy/`, `Medium/`, `Hard/`) in the configured target repository (`LEETCODE_REPO_PATH`).
+It is intentionally isolated from routing concerns so it can be tested independently.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import tempfile
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 from config import LEETCODE_REPO_PATH
+from git_service import InvalidRepositoryError
 from schemas import Submission
 
+logger = logging.getLogger(__name__)
 
-LANGUAGE_TO_FILENAME: Dict[str, str] = {
-    "cpp": "solution.cpp",
-    "python3": "solution.py",
-    "python": "solution.py",
-    "java": "Solution.java",
-    "javascript": "solution.js",
-    "typescript": "solution.ts",
-    "go": "solution.go",
-    "rust": "solution.rs",
-    "c": "solution.c",
-    "csharp": "Solution.cs",
-    "kotlin": "Solution.kt",
-    "swift": "Solution.swift",
+LANGUAGE_TO_EXTENSION: Dict[str, str] = {
+    "c++": ".cpp",
+    "cpp": ".cpp",
+    "python3": ".py",
+    "python": ".py",
+    "java": ".java",
+    "javascript": ".js",
+    "js": ".js",
+    "typescript": ".ts",
+    "ts": ".ts",
+    "go": ".go",
+    "golang": ".go",
+    "rust": ".rs",
+    "c": ".c",
+    "csharp": ".cs",
+    "c#": ".cs",
+    "kotlin": ".kt",
+    "swift": ".swift",
+    "ruby": ".rb",
+    "php": ".php",
+    "dart": ".dart",
+    "scala": ".scala",
+    "racket": ".rkt",
+    "erlang": ".erl",
+    "elixir": ".ex",
 }
 
-LANGUAGE_DISPLAY_NAMES: Dict[str, str] = {
-    "cpp": "C++",
-    "python3": "Python 3",
-    "python": "Python",
-    "java": "Java",
-    "javascript": "JavaScript",
-    "typescript": "TypeScript",
-    "go": "Go",
-    "rust": "Rust",
-    "c": "C",
-    "csharp": "C#",
-    "kotlin": "Kotlin",
-    "swift": "Swift",
-}
 
+def sanitize_filename(title: str) -> str:
+    """Return a filesystem-friendly version of problem title.
 
-def _sanitize_title(title: str) -> str:
-    """Return a filesystem-friendly version of the title.
-
-    Rules:
-    - Preserve letters and numbers and spaces
-    - Remove other punctuation
-    - Replace spaces with hyphens
-    - Preserve original capitalization
+    Removes invalid characters (: ? * < > | " \\ /) and collapses repeated spaces.
     """
 
-    # Keep letters, numbers and spaces
-    cleaned = re.sub(r"[^\w\s]", "", title)
-    # Collapse whitespace
+    cleaned = re.sub(r'[:?\*<>\|"\\/]', "", title)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return cleaned.replace(" ", "-")
+    return cleaned
+
+
+def get_file_extension(language: str) -> str:
+    """Return file extension for normalized language name."""
+
+    clean_lang = language.strip().lower()
+    ext = LANGUAGE_TO_EXTENSION.get(clean_lang)
+    if not ext:
+        raise ValueError(f"unsupported language: {language}")
+    return ext
+
+
+def validate_repository(repo_root: Path) -> None:
+    """Validate that `repo_root` exists and contains a `.git` folder."""
+
+    repo_root = Path(repo_root).expanduser().resolve()
+    if not repo_root.exists() or not (repo_root / ".git").exists():
+        raise InvalidRepositoryError(f"Configured repository path is not a valid git repository:\n{repo_root}")
 
 
 def _atomic_write(path: Path, content: str) -> None:
@@ -75,7 +87,6 @@ def _atomic_write(path: Path, content: str) -> None:
             fh.write(content)
         os.replace(tmp_path, str(path))
     finally:
-        # If replace failed, try to clean up
         try:
             if Path(tmp_path).exists():
                 Path(tmp_path).unlink()
@@ -83,51 +94,36 @@ def _atomic_write(path: Path, content: str) -> None:
             pass
 
 
-def write_submission(submission: Submission) -> Dict[str, object]:
-    """Create or update files for a validated `submission`.
+def write_submission(submission: Submission, repo_path: Optional[Path | str] = None) -> Dict[str, object]:
+    """Write solution file for `submission` into `<repo>/<Difficulty>/<Title>.<ext>`.
 
-    Returns a JSON-serializable dict indicating whether the submission
-    created new files or updated existing ones.
+    Returns a JSON-serializable dict indicating whether the submission created
+    new files or updated existing ones.
     """
 
-    repo_root = Path(LEETCODE_REPO_PATH) / "Leetcode-solutions"
-    repo_root.mkdir(parents=True, exist_ok=True)
+    repo_root = Path(repo_path or LEETCODE_REPO_PATH).expanduser().resolve()
+    validate_repository(repo_root)
 
-    difficulty_dir = repo_root / submission.difficulty
+    difficulty_folder = repo_root / submission.difficulty
+    difficulty_folder.mkdir(parents=True, exist_ok=True)
 
-    # Ensure difficulty directory exists
-    difficulty_dir.mkdir(parents=True, exist_ok=True)
+    sanitized_title = sanitize_filename(submission.title)
+    extension = get_file_extension(submission.language)
+    filename = f"{sanitized_title}{extension}"
+    solution_path = difficulty_folder / filename
 
-    sanitized = _sanitize_title(submission.title)
-    problem_dir_name = f"{submission.id:04d}-{sanitized}"
-    problem_dir = difficulty_dir / problem_dir_name
-
-    created = not problem_dir.exists()
-    problem_dir.mkdir(parents=True, exist_ok=True)
-
-    lang_key = submission.language.strip().lower()
-    filename = LANGUAGE_TO_FILENAME.get(lang_key)
-    if not filename:
-        raise ValueError(f"unsupported language: {submission.language}")
-
-    solution_path = problem_dir / filename
-
-    # Write solution file (overwrite if present)
+    created = not solution_path.exists()
     _atomic_write(solution_path, submission.code)
 
-    # Construct LeetCode URL from slug
-    url = f"https://leetcode.com/problems/{submission.slug}/"
+    relative_output = f"{submission.difficulty}/{filename}"
 
-    readme_contents = (
-        f"# {submission.id}. {submission.title}\n\n"
-        f"Difficulty: {submission.difficulty}\n\n"
-        f"Language: {LANGUAGE_DISPLAY_NAMES.get(lang_key, submission.language)}\n\n"
-        "LeetCode:\n"
-        f"{url}\n\n"
-        "## Solution\n\n"
-        f"See {filename}\n"
-    )
+    logger.info(f"Repository:\n{repo_root}")
+    logger.info(f"Difficulty:\n{submission.difficulty}")
+    logger.info(f"Output:\n{relative_output}")
 
-    _atomic_write(problem_dir / "README.md", readme_contents)
-
-    return {"status": "created" if created else "updated", "problem": {"id": submission.id, "title": submission.title}}
+    return {
+        "status": "created" if created else "updated",
+        "problem": {"id": submission.id, "title": submission.title},
+        "output_file": relative_output,
+        "solution_path": str(solution_path),
+    }

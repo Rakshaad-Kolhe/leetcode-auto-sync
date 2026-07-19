@@ -134,13 +134,16 @@ class GitService:
         """Verify that repo_path points to a valid Git working tree."""
 
         self._ensure_git_installed()
+        if not self.repo_path.exists() or not (self.repo_path / ".git").exists():
+            raise InvalidRepositoryError(f"Configured repository path is not a valid git repository: {self.repo_path}")
+
         try:
             result = self._run(["rev-parse", "--is-inside-work-tree"])
         except GitServiceError as exc:
-            raise InvalidRepositoryError(f"{self.repo_path} is not a valid Git repository.") from exc
+            raise InvalidRepositoryError(f"Configured repository path is not a valid git repository: {self.repo_path}") from exc
 
         if result.stdout.strip() != "true":
-            raise InvalidRepositoryError(f"{self.repo_path} is not a valid Git repository.")
+            raise InvalidRepositoryError(f"Configured repository path is not a valid git repository: {self.repo_path}")
 
         logger.info("git_repository_validated", extra={"repository_path": str(self.repo_path)})
         return {"valid": True, "repository": str(self.repo_path)}
