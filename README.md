@@ -135,3 +135,7 @@ All major languages on LeetCode (Python, C++, Java, JS, TypeScript, Go, Rust, Ru
 ## Known Limitations
 - The extension requires the LeetCode tab to remain open until the submission judging completes to grab the Monaco code lines successfully.
 - Code extraction is geared for standard Monaco-based LeetCode pages. If LeetCode performs full frontend changes, fallbacks will scan DOM trees.
+
+
+
+Leetcode auto sync
