@@ -7,6 +7,9 @@
   const LeetCodeAutoSync = global.LeetCodeAutoSync || {};
   const { Logger, SolutionParser, AcceptedSubmission, MessageTypes } = LeetCodeAutoSync;
 
+  // Load-time availability check
+  Logger.info(`[SolutionService LOAD] SolutionParser=${typeof SolutionParser}, AcceptedSubmission=${typeof AcceptedSubmission}`);
+
   let initialized = false;
 
   /**
@@ -54,14 +57,15 @@
    * @param {AcceptedSubmission} submissionModel - Complete validated submission object.
    */
   function sendToBackground(submissionModel) {
+    Logger.info("SolutionService: Dispatching SUBMISSION_ACCEPTED message to background worker:", submissionModel);
     chrome.runtime.sendMessage({
       type: MessageTypes.SUBMISSION_ACCEPTED,
       payload: submissionModel
     }, (response) => {
       if (chrome.runtime.lastError) {
-        Logger.warn("SolutionService: Failed to dispatch submission to background worker:", chrome.runtime.lastError.message);
+        Logger.error("SolutionService: Failed to dispatch submission to background worker:", chrome.runtime.lastError.message);
       } else {
-        Logger.info("SolutionService: Background worker cached accepted submission successfully:", response);
+        Logger.info("SolutionService: Background worker cached accepted submission successfully. Response:", response);
       }
     });
   }
@@ -82,11 +86,29 @@
      * @param {SubmissionModel} metadataModel - Validated problem details.
      */
     async processAcceptedSubmission(metadataModel) {
+      Logger.info("SolutionService: processAcceptedSubmission() entered. metadataModel:", metadataModel);
+      Logger.info(`SolutionService: SolutionParser at call time = ${typeof SolutionParser}, runtime = ${typeof LeetCodeAutoSync.SolutionParser}`);
+      Logger.info(`SolutionService: AcceptedSubmission at call time = ${typeof AcceptedSubmission}, runtime = ${typeof LeetCodeAutoSync.AcceptedSubmission}`);
+
+      const parser = SolutionParser || LeetCodeAutoSync.SolutionParser;
+      const SubmissionClass = AcceptedSubmission || LeetCodeAutoSync.AcceptedSubmission;
+
+      if (!parser) {
+        Logger.error("SolutionService: SolutionParser is undefined — cannot extract code. Check script load order.");
+        return;
+      }
+      if (!SubmissionClass) {
+        Logger.error("SolutionService: AcceptedSubmission is undefined — cannot build model. Check script load order.");
+        return;
+      }
+
       Logger.info("SolutionService: Solution extraction started");
 
       try {
         // 1. Extract the code using the hybrid parser
-        const code = await SolutionParser.parse();
+        Logger.info("SolutionService: Invoking SolutionParser.parse()...");
+        const code = await parser.parse();
+        Logger.info(`SolutionService: SolutionParser.parse() returned code content of length: ${code ? code.length : 0}`);
 
         // 2. Validate the code content
         if (!validateCode(code)) {
@@ -97,13 +119,15 @@
         Logger.info(`SolutionService: Solution extraction completed. Length: ${code.length} characters.`);
 
         // 3. Assemble complete AcceptedSubmission model
-        const submission = new AcceptedSubmission({
+        Logger.info("SolutionService: Assembling AcceptedSubmission model...");
+        const submission = new SubmissionClass({
           metadata: metadataModel,
           code: code,
           extractedAt: new Date().toISOString()
         });
 
         // 4. Validate complete model structure
+        Logger.info("SolutionService: Validating AcceptedSubmission model...");
         if (!submission.validate()) {
           Logger.error("SolutionService: Validation failed for complete AcceptedSubmission model.");
           return;
@@ -112,9 +136,10 @@
         Logger.info("SolutionService: AcceptedSubmission model validated successfully. Character count:", code.length);
 
         // 5. Send complete submission object to background
+        Logger.info("SolutionService: Calling sendToBackground()...");
         sendToBackground(submission);
       } catch (err) {
-        Logger.error("SolutionService: Exception occurred during code extraction pipeline:", err);
+        Logger.error("SolutionService: UNCAUGHT EXCEPTION in processAcceptedSubmission:", err.message, err.stack);
       }
     },
 

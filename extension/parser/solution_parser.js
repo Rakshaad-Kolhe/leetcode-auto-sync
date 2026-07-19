@@ -71,14 +71,17 @@
    * @throws {Error} If editor components cannot be found.
    */
   function extractCodeViaDOM() {
+    Logger.info("SolutionParser: Running extractCodeViaDOM()...");
     // 1. Locate Monaco container
     let container = null;
     for (const sel of SELECTORS.MONACO_CONTAINER) {
       container = document.querySelector(sel);
+      Logger.info(`SolutionParser: Querying Monaco container with selector "${sel}":`, container);
       if (container) break;
     }
 
     if (!container) {
+      Logger.error("SolutionParser: Monaco Editor container element not found in DOM using selectors:", SELECTORS.MONACO_CONTAINER);
       throw new Error("Monaco Editor container element not found in DOM");
     }
 
@@ -86,6 +89,7 @@
     let lines = [];
     for (const sel of SELECTORS.VIEW_LINE) {
       const lineEls = container.querySelectorAll(sel);
+      Logger.info(`SolutionParser: Querying view lines with selector "${sel}": found ${lineEls ? lineEls.length : 0} line elements`);
       if (lineEls && lineEls.length > 0) {
         lines = Array.from(lineEls).map((el) => el.textContent || "");
         break;
@@ -93,6 +97,7 @@
     }
 
     if (lines.length === 0) {
+      Logger.error("SolutionParser: No text content or view lines could be scraped from the editor");
       throw new Error("No text content or view lines could be scraped from the editor");
     }
 
@@ -107,7 +112,9 @@
     async parse() {
       // 1. Try script injection first (Monaco Model API)
       try {
+        Logger.info("SolutionParser: Attempting script injection parser...");
         const injectedCode = await extractCodeViaInjection();
+        Logger.info("SolutionParser: Script injection parser returned:", injectedCode ? `[code of length ${injectedCode.length}]` : "null");
         if (injectedCode !== null && injectedCode !== undefined) {
           Logger.info("SolutionParser: Successfully extracted code via main-world Monaco API");
           return injectedCode;
@@ -118,7 +125,9 @@
 
       // 2. Fall back to DOM node scraping
       Logger.info("SolutionParser: Falling back to DOM-based lines compilation");
-      return extractCodeViaDOM();
+      const domCode = extractCodeViaDOM();
+      Logger.info("SolutionParser: DOM-based line scraping returned code content of length:", domCode ? domCode.length : 0);
+      return domCode;
     }
   };
 

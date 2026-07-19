@@ -81,25 +81,14 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title=SERVICE_NAME, version=SERVICE_VERSION, lifespan=lifespan)
 
-if ENV == "development":
-    logger.info("CORS: configured for development (allowing all chrome extensions)")
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex="chrome-extension://.*",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-else:
-    allowed_origins = [f"chrome-extension://{ext_id}" for ext_id in ALLOWED_EXTENSION_IDS]
-    logger.info("CORS: configured for production", extra={"allowed_origins": allowed_origins})
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=allowed_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+logger.info("CORS: configured to allow all chrome extensions via regex")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"chrome-extension://.*",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next: Any) -> Response:

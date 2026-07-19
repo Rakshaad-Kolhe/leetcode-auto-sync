@@ -28,6 +28,7 @@
   }
 
   function triggerRunning() {
+    Logger.info("Detector: Submission running/judging detected");
     runningCallbacks.forEach((cb) => {
       try {
         cb();
@@ -89,7 +90,9 @@
     const elements = document.querySelectorAll("span, div, p, h3, h4");
     for (const el of elements) {
       const text = el.textContent.trim().replace(/\.+$/, "");
-      if (text === "Pending" || text === "Judging") {
+      const lower = text.toLowerCase();
+      if (lower === "pending" || lower === "judging" || lower === "submitting" || lower === "running" || lower === "evaluating") {
+        Logger.info(`Detector: checkRunningState matched running text: "${text}"`);
         return true;
       }
     }
@@ -103,9 +106,13 @@
   function detectVerdict() {
     const elements = document.querySelectorAll("span, div, p, h3, h4, a");
     for (const el of elements) {
-      const text = el.textContent.trim();
+      const rawText = el.textContent || "";
+      const text = rawText.replace(/\u00a0/g, " ").trim().toLowerCase();
+      if (!text) continue;
+
       for (const val of Object.values(Verdicts)) {
-        if (val !== Verdicts.UNKNOWN && text === val) {
+        if (val !== Verdicts.UNKNOWN && text === val.toLowerCase()) {
+          Logger.info(`Detector: detectVerdict matched verdict: "${val}" (raw: "${rawText.trim()}")`);
           return val;
         }
       }
@@ -124,6 +131,8 @@
       return;
     }
 
+    Logger.info(`Detector: handleDOMMutation active. currentState: ${fastState}, url: ${window.location.href}`);
+
     if (isScanning) return;
     isScanning = true;
 
@@ -131,27 +140,26 @@
       // Re-read state machine value within frame callback to prevent stale closures
       const state = LeetCodeAutoSync.SubmissionState ? LeetCodeAutoSync.SubmissionState.getState() : "IDLE";
       if (state !== "SUBMITTING" && state !== "RUNNING") {
+        Logger.info(`Detector: Scan frame skipped. State transitioned to: ${state}`);
         isScanning = false;
         return;
       }
 
-      const isRunning = checkRunningState();
-      
-      if (isRunning) {
-        triggerRunning();
-        isScanning = false;
-        return;
-      }
-
-      // If we are currently in RUNNING state and judging is complete, identify final verdict
       if (state === "RUNNING") {
+        // Already in RUNNING — look for the final verdict immediately.
+        // Do NOT short-circuit on checkRunningState(); "Pending" text may appear in
+        // unrelated submission history rows on the same page and would block verdict
+        // detection forever.
         const verdict = detectVerdict();
+        Logger.info(`Detector: DOM mutation scan detectVerdict in RUNNING: ${verdict}`);
         if (verdict) {
           triggerFinished(verdict);
         } else {
-          // Graceful fallback: wait briefly for final verdict DOM rendering
+          // Verdict DOM not yet rendered — schedule one fallback scan.
+          Logger.info("Detector: No verdict detected yet. Scheduling fallback timeout...");
           setTimeout(() => {
             const finalVerdict = detectVerdict();
+            Logger.info(`Detector: Fallback timeout scan detectVerdict: ${finalVerdict}`);
             if (finalVerdict) {
               triggerFinished(finalVerdict);
             } else {
@@ -160,10 +168,18 @@
           }, 150);
         }
       } else {
-        // If still in SUBMITTING state, look for early/instant verdicts
-        const verdict = detectVerdict();
-        if (verdict) {
-          triggerFinished(verdict);
+        // state === "SUBMITTING": check whether judging has started yet
+        const isRunning = checkRunningState();
+        Logger.info(`Detector: DOM mutation scan checkRunningState (SUBMITTING): ${isRunning}`);
+        if (isRunning) {
+          triggerRunning();
+        } else {
+          // Look for an instant/early verdict (e.g. compile error before judging begins)
+          const verdict = detectVerdict();
+          Logger.info(`Detector: DOM mutation scan detectVerdict in SUBMITTING: ${verdict}`);
+          if (verdict) {
+            triggerFinished(verdict);
+          }
         }
       }
 

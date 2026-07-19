@@ -7,7 +7,7 @@ importScripts(
   "../services/backend_service.js"
 );
 
-const { Logger, MessageTypes } = globalThis.LeetCodeAutoSync;
+const { Logger, MessageTypes, PageTypes } = globalThis.LeetCodeAutoSync;
 
 Logger.info("Background worker script loaded");
 
@@ -50,13 +50,14 @@ function notifyPopup(msg) {
  * @param {Object} submissionPayload - Raw data payload.
  */
 async function performSync(submissionPayload) {
+  Logger.info("Background: performSync() invoked with payload:", submissionPayload);
   if (isSyncing) {
-    Logger.warn("Sync already in progress, skipping duplicate request");
+    Logger.warn("Background: Sync already in progress, skipping duplicate request");
     return;
   }
   isSyncing = true;
 
-  Logger.info("Synchronization started");
+  Logger.info("Background: Synchronization started");
 
   // Notify popup that synchronization is starting
   latestSyncResult = {
@@ -64,6 +65,7 @@ async function performSync(submissionPayload) {
     timestamp: new Date().toISOString(),
     error: null
   };
+  Logger.info("Background: Notifying popup of SYNCING status");
   notifyPopup({
     type: MessageTypes.SYNC_STATUS_CHANGED,
     payload: latestSyncResult
@@ -72,6 +74,7 @@ async function performSync(submissionPayload) {
   try {
     const { SubmissionModel, AcceptedSubmission, BackendService } = globalThis.LeetCodeAutoSync;
 
+    Logger.info("Background: Reconstructing SubmissionModel and AcceptedSubmission...");
     // 1. Reconstruct classes to perform deep validation
     const metadata = new SubmissionModel(submissionPayload.metadata);
     const submission = new AcceptedSubmission({
@@ -80,10 +83,12 @@ async function performSync(submissionPayload) {
       extractedAt: submissionPayload.extractedAt
     });
 
-    Logger.info("Payload validated");
+    Logger.info("Background: Reconstructed Submission object:", submission);
 
     // 2. Dispatch payload via BackendService client
+    Logger.info("Background: Dispatching submission to BackendService.submitSubmission()...");
     const response = await BackendService.submitSubmission(submission);
+    Logger.info("Background: BackendService.submitSubmission() response received:", response);
 
     latestSyncResult = {
       success: response.success,
@@ -92,12 +97,13 @@ async function performSync(submissionPayload) {
     };
 
     if (response.success) {
-      Logger.info("Synchronization completed");
+      Logger.info("Background: Synchronization completed successfully!");
     } else {
-      Logger.error(`Synchronization failed: ${response.error}`);
+      Logger.error(`Background: Synchronization failed: ${response.error}`);
     }
 
     // Broadcast synchronization completion to popup
+    Logger.info("Background: Notifying popup of sync complete status:", latestSyncResult);
     notifyPopup({
       type: MessageTypes.SYNC_STATUS_CHANGED,
       payload: latestSyncResult
@@ -108,7 +114,7 @@ async function performSync(submissionPayload) {
       timestamp: new Date().toISOString(),
       error: err.message || "Sync processing error"
     };
-    Logger.error(`Synchronization failed: ${latestSyncResult.error}`);
+    Logger.error(`Background: Synchronization failed with exception: ${latestSyncResult.error}`, err);
 
     notifyPopup({
       type: MessageTypes.SYNC_STATUS_CHANGED,
@@ -136,13 +142,26 @@ function handleMessage(message, sender, sendResponse) {
   if (message.type === MessageTypes.PAGE_CHANGED) {
     const prevSlug = activePageContext ? activePageContext.slug : null;
     const newSlug = message.payload ? message.payload.slug : null;
+    const newPageType = message.payload ? message.payload.pageType : null;
 
-    // Reset active submission state ONLY if the actual problem slug has changed.
-    // Do NOT wipe latestAcceptedSubmission to preserve manual retry options across navigation.
-    if (prevSlug !== newSlug) {
+    if (prevSlug !== null) {
+      const isDifferentProblem = (newSlug !== null && newSlug !== prevSlug);
+      const isLeavingToMainSection = (newSlug === null && newPageType !== PageTypes.UNKNOWN);
+      
+      if (isDifferentProblem || isLeavingToMainSection) {
+        activeSubmissionState = { status: "IDLE", verdict: null };
+        Logger.info(`Reset active submission state due to leaving problem context (Slug: ${prevSlug} -> ${newSlug})`);
+      } else {
+        Logger.info("Background: Navigation within same logical problem session. Preserving active problem context.");
+        if (message.payload && activePageContext) {
+          message.payload.slug = prevSlug;
+          message.payload.pageType = activePageContext.pageType;
+        }
+      }
+    } else if (newSlug !== null) {
       activeSubmissionState = { status: "IDLE", verdict: null };
-      Logger.info(`Reset active submission state due to problem context change (Slug: ${prevSlug} -> ${newSlug})`);
     }
+    
     activePageContext = message.payload;
     Logger.info("Context updated from Content Script:", activePageContext);
     sendResponse({ status: "received" });
@@ -167,10 +186,12 @@ function handleMessage(message, sender, sendResponse) {
 
   // Handle SUBMISSION_ACCEPTED message containing complete submission details
   if (message.type === MessageTypes.SUBMISSION_ACCEPTED) {
+    Logger.info("Background: Received SUBMISSION_ACCEPTED message. Payload:", message.payload);
     latestAcceptedSubmission = message.payload;
-    Logger.info("Background: Cached accepted submission details:", latestAcceptedSubmission);
+    Logger.info("Background: Cached accepted submission details successfully:", latestAcceptedSubmission);
     
     // Trigger backend synchronization flow asynchronously
+    Logger.info("Background: Triggering performSync()...");
     performSync(latestAcceptedSubmission);
 
     sendResponse({ status: "received" });
