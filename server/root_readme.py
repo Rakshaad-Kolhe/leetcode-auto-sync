@@ -51,7 +51,7 @@ def generate_readme(repo_root: Path | None = None) -> Path:
     """
 
     if repo_root is None:
-        repo_root = Path(LEETCODE_REPO_PATH)
+        repo_root = Path(LEETCODE_REPO_PATH).expanduser().resolve()
 
     problems, stats = scan_repository(repo_root)
 
@@ -95,9 +95,9 @@ def generate_readme(repo_root: Path | None = None) -> Path:
 
     for p in problems:
         lang = _lang_display(p.language)
-        # Escape pipe characters in titles
         title = p.title.replace("|", "\\|")
-        lines.append(f"| {p.id} | {title} | {p.difficulty} | {lang} |")
+        id_str = str(p.id) if p.id > 0 else "-"
+        lines.append(f"| {id_str} | {title} | {p.difficulty} | {lang} |")
 
     lines.append("")
 

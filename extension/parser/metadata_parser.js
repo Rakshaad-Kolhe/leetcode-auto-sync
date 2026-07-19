@@ -209,9 +209,17 @@
     // Tier 3: Broad text-content scan.
     // LeetCode renders the language picker as a plain button showing the display name
     // (e.g. "Python3", "C++", "Java"). Scan all buttons for a known language token.
+    //
+    // Sorted longest-first so "python3" is tested before "python", "javascript"
+    // before "java", etc., avoiding shorter-prefix false matches.
+    //
+    // startsWith guard: after the matched prefix the next character must be
+    // non-alphanumeric (end-of-string, a space, a chevron icon, etc.).
+    // This prevents "chooseatype".startsWith("c") from matching.
     const knownLangs = [
-      'python3', 'python', 'java', 'c++', 'cpp', 'c', 'c#', 'javascript', 'typescript',
-      'ruby', 'swift', 'go', 'scala', 'kotlin', 'rust', 'php', 'racket', 'erlang', 'elixir', 'dart'
+      'javascript', 'typescript', 'python3', 'python', 'elixir', 'erlang',
+      'kotlin', 'racket', 'scala', 'swift', 'dart', 'java', 'rust', 'php',
+      'ruby', 'c++', 'cpp', 'c#', 'go', 'c'
     ];
     const buttonCandidates = document.querySelectorAll('button, [role="button"], [role="combobox"], [role="option"]');
     for (const el of buttonCandidates) {
@@ -220,7 +228,12 @@
       const clean = raw.toLowerCase().replace(/\s+/g, '');
       for (const lang of knownLangs) {
         const normalLang = lang.replace(/\s+/g, '');
-        if (clean === normalLang || clean.startsWith(normalLang)) {
+        const isExact = clean === normalLang;
+        const isPrefix = clean.startsWith(normalLang) &&
+          // The character immediately after the matched prefix must NOT be alphanumeric.
+          // This prevents "chooseatype" from matching the single-letter lang "c".
+          !/[a-z0-9]/.test(clean[normalLang.length] || '');
+        if (isExact || isPrefix) {
           Logger.info(`MetadataParser: extractLanguage tier-3 text scan matched "${raw}" for lang "${lang}"`);
           const normalized = normalizeLanguage(raw);
           cachedLanguage = normalized;
@@ -232,6 +245,7 @@
     Logger.warn("MetadataParser: extractLanguage() all three tiers failed. Selectors tried:", SELECTORS.LANGUAGE_SELECT);
     return null;
   }
+
 
 
   const MetadataParser = {
