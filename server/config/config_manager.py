@@ -5,6 +5,7 @@ Handles loading, validating, merging, and strongly-typed access to application c
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 from dataclasses import dataclass, field
@@ -60,6 +61,15 @@ class AppConfig:
     git: GitConfig = field(default_factory=GitConfig)
     metadata: MetadataConfig = field(default_factory=MetadataConfig)
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert AppConfig into JSON-serializable dictionary."""
+        return {
+            "repository": dataclasses.asdict(self.repository),
+            "documentation": dataclasses.asdict(self.documentation),
+            "git": dataclasses.asdict(self.git),
+            "metadata": dataclasses.asdict(self.metadata),
+        }
+
 
 class ConfigManager:
     """Singleton/Manager for application configuration.
@@ -97,6 +107,13 @@ class ConfigManager:
         if self._config is None:
             self.load_config()
         assert self._config is not None
+        return self._config
+
+    def update(self, **kwargs: Any) -> AppConfig:
+        """Update configuration settings in memory."""
+        current_dict = self.get_config().to_dict()
+        merged = self._deep_merge(current_dict, kwargs)
+        self._config = self._build_app_config(merged)
         return self._config
 
     def reload_config(
