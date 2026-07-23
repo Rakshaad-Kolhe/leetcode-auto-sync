@@ -6,9 +6,10 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from config import LEETCODE_REPO_PATH
+from config.config_manager import AppConfig, ConfigManager
 
 from .generator import DocumentationGenerator
 from .models import ProblemMetadata
@@ -17,21 +18,28 @@ from .statistics import generate_statistics, scan_repository
 logger = logging.getLogger(__name__)
 
 
-def regenerate_root_readme(repo_root: Path | str | None = None) -> Path:
+def regenerate_root_readme(
+    repo_root: Path | str | None = None,
+    config: Optional[AppConfig] = None,
+) -> Path:
     """Write a fresh root README.md and topic pages from current repository contents."""
-
     root = Path(repo_root or LEETCODE_REPO_PATH).expanduser().resolve()
+    app_config = config or ConfigManager.get_instance(repo_root=root).get_config()
+
     problems = scan_repository(root)
     statistics = generate_statistics(problems)
-    generator = DocumentationGenerator()
+    generator = DocumentationGenerator(app_config)
 
-    # 1. Regenerate root README.md
-    readme = generator.generate_repository_readme(problems, statistics)
     readme_path = root / "README.md"
-    _atomic_write(readme_path, readme)
 
-    # 2. Regenerate Topics/*.md pages
-    _regenerate_topic_pages(root, problems, generator)
+    # 1. Regenerate root README.md if auto_generate_dashboard is enabled
+    if app_config.repository.auto_generate_dashboard:
+        readme = generator.generate_repository_readme(problems, statistics)
+        _atomic_write(readme_path, readme)
+
+    # 2. Regenerate Topics/*.md pages if auto_generate_topics is enabled
+    if app_config.repository.auto_generate_topics:
+        _regenerate_topic_pages(root, problems, generator)
 
     return readme_path
 
@@ -42,7 +50,6 @@ def _regenerate_topic_pages(
     generator: DocumentationGenerator,
 ) -> None:
     """Generate topic-specific markdown files under `<root>/Topics/`."""
-
     topics_dir = root / "Topics"
     topics_dir.mkdir(parents=True, exist_ok=True)
 

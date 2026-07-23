@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from config import LEETCODE_REPO_PATH
+from config.config_manager import AppConfig, ConfigManager, MetadataConfig
 
 from .cache import MetadataCache
 from .graphql_client import LeetCodeGraphQLClient
@@ -25,11 +26,25 @@ class MetadataService:
         cache: Optional[MetadataCache] = None,
         *,
         repo_root: Path | str | None = None,
+        config: AppConfig | MetadataConfig | ConfigManager | None = None,
     ) -> None:
         target_path = repo_root or repo_path or LEETCODE_REPO_PATH
         root = Path(target_path).expanduser().resolve()
+
+        if isinstance(config, AppConfig):
+            meta_cfg = config.metadata
+        elif isinstance(config, MetadataConfig):
+            meta_cfg = config
+        elif isinstance(config, ConfigManager):
+            meta_cfg = config.get_config().metadata
+        else:
+            meta_cfg = ConfigManager.get_instance(repo_root=root).get_config().metadata
+
+        self.enable_graphql = meta_cfg.enable_graphql
+        max_age_seconds = meta_cfg.cache_days * 86400
+
         cache_dir = root / ".cache" / "metadata"
-        self.cache = cache or MetadataCache(cache_dir=cache_dir)
+        self.cache = cache or MetadataCache(cache_dir=cache_dir, max_age_seconds=max_age_seconds)
         self.client = graphql_client or LeetCodeGraphQLClient()
 
     def get_metadata(
@@ -60,7 +75,17 @@ class MetadataService:
             logger.info(f"Metadata cache hit for slug '{clean_slug}'")
             return cached
 
-        # 2. Query GraphQL endpoint
+        # 2. Query GraphQL endpoint if enabled
+        if not self.enable_graphql:
+            logger.info(f"GraphQL disabled by configuration; using fallback metadata for '{clean_slug}'.")
+            return self._fallback_metadata(
+                slug=clean_slug,
+                problem_number=problem_number,
+                title=title,
+                difficulty=difficulty,
+                submission_data=submission_data,
+            )
+
         logger.info(f"Querying LeetCode GraphQL API for slug '{clean_slug}'...")
         enriched = self.client.fetch_problem_metadata(clean_slug)
 
@@ -104,5 +129,4 @@ class MetadataService:
             companies=[],
             hints=[],
             similar_questions=[],
-            raw={},
         )

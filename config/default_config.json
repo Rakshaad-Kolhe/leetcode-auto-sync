@@ -1,0 +1,30 @@
+{
+  "repository": {
+    "folder_layout": "difficulty-number-title",
+    "auto_generate_readme": true,
+    "auto_generate_topics": true,
+    "auto_generate_dashboard": true
+  },
+  "documentation": {
+    "template": "classic",
+    "difficulty_badges": true,
+    "language_badges": true,
+    "show_acceptance": true,
+    "show_likes": true,
+    "show_dislikes": true,
+    "show_topics": true,
+    "show_companies": true,
+    "show_hints": true,
+    "show_timestamp": true,
+    "show_solution": true
+  },
+  "git": {
+    "auto_commit": true,
+    "auto_push": true,
+    "commit_message": "Add {problem_number} - {problem_title}"
+  },
+  "metadata": {
+    "enable_graphql": true,
+    "cache_days": 30
+  }
+}

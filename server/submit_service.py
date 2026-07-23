@@ -30,12 +30,20 @@ def process_submission(submission: Submission) -> Dict[str, object]:
         problem_id=submission.id,
         title=submission.title,
         is_new_problem=result["status"] == "created",
+        difficulty=submission.difficulty,
+        language=submission.language,
     )
 
     if git_result.get("status") == "no_changes":
         logger.info("Commit:\nno_changes")
         logger.info("Push:\nskipped")
         return {"status": "no_changes"}
+
+    if git_result.get("status") == "staged_only":
+        logger.info("Commit:\nskipped (staged only)")
+        logger.info("Push:\nskipped")
+        result["git"] = git_result
+        return result
 
     commit_hash = git_result.get("commit", "none")
     pushed = git_result.get("pushed", False)

@@ -6,11 +6,19 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from config import AUTO_PUSH, DEFAULT_BRANCH, LEETCODE_REPO_PATH, REMOTE_NAME
+from config.config_manager import AppConfig, ConfigManager, GitConfig
 
 logger = logging.getLogger(__name__)
+
+
+class SafeDict(dict):
+    """Fallback dictionary that preserves unknown format placeholders."""
+
+    def __missing__(self, key: str) -> str:
+        return f"{{{key}}}"
 
 
 class GitServiceError(Exception):
@@ -24,7 +32,6 @@ class GitServiceError(Exception):
 
     def to_dict(self) -> Dict[str, str]:
         """Return a JSON-safe error payload."""
-
         return {"code": self.code, "message": self.message}
 
 
@@ -71,26 +78,43 @@ class GitService:
         self,
         repo_path: Path | str | None = None,
         *,
-        auto_push: bool = AUTO_PUSH,
+        auto_commit: bool | None = None,
+        auto_push: bool | None = None,
+        commit_message: str | None = None,
         remote_name: str = REMOTE_NAME,
         default_branch: str = DEFAULT_BRANCH,
         git_executable: str = "git",
+        config: AppConfig | GitConfig | ConfigManager | None = None,
     ) -> None:
         self.repo_path = Path(repo_path or LEETCODE_REPO_PATH).expanduser().resolve()
-        self.auto_push = auto_push
+
+        if isinstance(config, AppConfig):
+            git_cfg = config.git
+        elif isinstance(config, GitConfig):
+            git_cfg = config
+        elif isinstance(config, ConfigManager):
+            git_cfg = config.get_config().git
+        else:
+            git_cfg = ConfigManager.get_instance(repo_root=self.repo_path).get_config().git
+
+        self.auto_commit = git_cfg.auto_commit if auto_commit is None else auto_commit
+        self.auto_push = git_cfg.auto_push if auto_push is None else auto_push
+        self.commit_message_template = git_cfg.commit_message if commit_message is None else commit_message
+
         self.remote_name = remote_name
         self.default_branch = default_branch
         self.git_executable = git_executable
 
-    def sync(self, *, problem_id: int, title: str, is_new_problem: bool) -> Dict[str, Any]:
-        """Synchronize repository changes for a problem submission.
-
-        The method validates the repository, detects changes, stages changed
-        files, commits with a generated problem message, and pushes only when
-        AUTO_PUSH is enabled. Expected Git failures are converted to structured
-        JSON-safe results so generated repository files are preserved.
-        """
-
+    def sync(
+        self,
+        *,
+        problem_id: int,
+        title: str,
+        is_new_problem: bool,
+        difficulty: str = "",
+        language: str = "",
+    ) -> Dict[str, Any]:
+        """Synchronize repository changes for a problem submission."""
         logger.info("git_sync_started", extra={"problem_id": problem_id})
         try:
             self.verify_repository()
@@ -102,10 +126,18 @@ class GitService:
                 return {"status": "no_changes"}
 
             staged = self.stage_changes()
+
+            if not self.auto_commit:
+                logger.info("git_sync_staged_only", extra={"branch": branch, "file_count": len(staged["files"])})
+                return {"status": "staged_only", "branch": branch, "pushed": False, "files": staged["files"]}
+
             message = generate_problem_commit_message(
                 problem_id,
                 title,
                 is_new_problem=is_new_problem,
+                template=self.commit_message_template,
+                difficulty=difficulty,
+                language=language,
             )
             commit = self.commit_changes(message)
 
@@ -114,7 +146,7 @@ class GitService:
                 self.push_changes(branch)
                 pushed = True
 
-            result = {"branch": branch, "commit": commit["commit"], "pushed": pushed}
+            result = {"branch": branch, "commit": commit["commit"], "pushed": pushed, "status": "committed"}
             logger.info(
                 "git_sync_completed",
                 extra={
@@ -132,7 +164,6 @@ class GitService:
 
     def verify_repository(self) -> Dict[str, Any]:
         """Verify that repo_path points to a valid Git working tree."""
-
         self._ensure_git_installed()
         if not self.repo_path.exists() or not (self.repo_path / ".git").exists():
             raise InvalidRepositoryError(f"Configured repository path is not a valid git repository: {self.repo_path}")
@@ -150,7 +181,6 @@ class GitService:
 
     def get_current_branch(self) -> Dict[str, Any]:
         """Return the current branch name and whether it matches DEFAULT_BRANCH."""
-
         self._ensure_git_installed()
         try:
             result = self._run(["symbolic-ref", "--quiet", "--short", "HEAD"])
@@ -166,7 +196,6 @@ class GitService:
 
     def get_status(self) -> Dict[str, Any]:
         """Return porcelain Git status as a structured result."""
-
         self._ensure_git_installed()
         result = self._run(["status", "--porcelain"])
         files = [_parse_status_line(line) for line in result.stdout.splitlines() if line]
@@ -177,7 +206,6 @@ class GitService:
 
     def stage_changes(self) -> Dict[str, Any]:
         """Stage all repository changes with `git add .`."""
-
         self._ensure_git_installed()
         self._run(["add", "."])
         result = self._run(["diff", "--cached", "--name-only"])
@@ -188,7 +216,6 @@ class GitService:
 
     def commit_changes(self, message: str) -> Dict[str, Any]:
         """Create a commit and return the resulting short commit hash."""
-
         self._ensure_git_installed()
         try:
             self._run(["commit", "-m", message])
@@ -201,7 +228,6 @@ class GitService:
 
     def push_changes(self, branch: str | None = None) -> Dict[str, Any]:
         """Push the requested branch to the configured remote."""
-
         self._ensure_git_installed()
         target_branch = branch or self.get_current_branch()["branch"]
         self._verify_remote()
@@ -246,11 +272,35 @@ class GitService:
             raise GitServiceError(message) from exc
 
 
-def generate_problem_commit_message(problem_id: int, title: str, *, is_new_problem: bool) -> str:
-    """Generate a deterministic commit message for a problem write."""
-
+def generate_problem_commit_message(
+    problem_id: int,
+    title: str,
+    *,
+    is_new_problem: bool = True,
+    template: str = "{action} {problem_number} - {problem_title}",
+    difficulty: str = "",
+    language: str = "",
+) -> str:
+    """Generate a formatted commit message for a problem write based on a template."""
     action = "Add" if is_new_problem else "Update"
-    return f"{action} {problem_id:04d} - {title}"
+    padded_id = f"{problem_id:04d}" if isinstance(problem_id, int) else str(problem_id)
+
+    if "{action}" not in template and not is_new_problem and template.startswith("Add "):
+        template = "Update " + template[4:]
+
+    mapping = SafeDict(
+        problem_number=padded_id,
+        problem_id=padded_id,
+        problem_title=title,
+        title=title,
+        difficulty=difficulty,
+        language=language,
+        action=action,
+    )
+    try:
+        return template.format_map(mapping)
+    except Exception:
+        return f"{action} {padded_id} - {title}"
 
 
 def _parse_status_line(line: str) -> Dict[str, str]:
