@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "leetcode-auto-sync"
+version = "1.0.0"
+description = "Automated, intelligent LeetCode submission synchronization and documentation engine"
+readme = "README.md"
+authors = [
+    { name = "Rakshaad Kolhe", email = "rakshaadkolhe@gmail.com" }
+]
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.28.0",
+    "pydantic>=2.0",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0"
+]
+
+[project.scripts]
+leetcode-auto-sync = "server.app:main"

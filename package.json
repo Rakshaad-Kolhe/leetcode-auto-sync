@@ -1,0 +1,18 @@
+{
+  "name": "leetcode-auto-sync-extension",
+  "version": "1.0.0",
+  "description": "Chrome Extension for LeetCode Auto Sync",
+  "main": "extension/background/service_worker.js",
+  "scripts": {
+    "build": "node scripts/package.js || python scripts/package.py",
+    "package": "node scripts/package.js || python scripts/package.py"
+  },
+  "keywords": [
+    "leetcode",
+    "chrome-extension",
+    "git-sync",
+    "automation"
+  ],
+  "author": "Rakshaad Kolhe",
+  "license": "MIT"
+}
