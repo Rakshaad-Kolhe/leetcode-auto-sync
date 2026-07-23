@@ -6,7 +6,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 from config import LEETCODE_REPO_PATH
 from config.config_manager import AppConfig, ConfigManager
@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 def regenerate_root_readme(
     repo_root: Path | str | None = None,
     config: Optional[AppConfig] = None,
+    affected_topics: Optional[List[str]] = None,
 ) -> Path:
     """Write a fresh root README.md and topic pages from current repository contents."""
     root = Path(repo_root or LEETCODE_REPO_PATH).expanduser().resolve()
@@ -39,17 +40,21 @@ def regenerate_root_readme(
 
     # 2. Regenerate Topics/*.md pages if auto_generate_topics is enabled
     if app_config.repository.auto_generate_topics:
-        _regenerate_topic_pages(root, problems, generator)
+        regenerate_topic_pages(root, problems, generator, affected_topics=affected_topics)
 
     return readme_path
 
 
-def _regenerate_topic_pages(
+def regenerate_topic_pages(
     root: Path,
     problems: List[ProblemMetadata],
     generator: DocumentationGenerator,
-) -> None:
-    """Generate topic-specific markdown files under `<root>/Topics/`."""
+    affected_topics: Optional[List[str]] = None,
+) -> List[Path]:
+    """Generate topic-specific markdown files under `<root>/Topics/`.
+
+    If `affected_topics` is provided, only regenerate those specific topics.
+    """
     topics_dir = root / "Topics"
     topics_dir.mkdir(parents=True, exist_ok=True)
 
@@ -58,21 +63,34 @@ def _regenerate_topic_pages(
         for topic in problem.topics:
             topics_map.setdefault(topic, []).append(problem)
 
-    # Write each topic page
-    written_files = set()
+    affected_set: Optional[Set[str]] = set(affected_topics) if affected_topics is not None else None
+
+    written_paths: List[Path] = []
+    written_files: Set[Path] = set()
+
     for topic_name, topic_problems in topics_map.items():
+        if affected_set is not None and topic_name not in affected_set:
+            file_path = topics_dir / f"{topic_name}.md"
+            if file_path.exists():
+                written_files.add(file_path.resolve())
+            continue
+
         topic_content = generator.generate_topic_page(topic_name, topic_problems)
         file_path = topics_dir / f"{topic_name}.md"
         _atomic_write(file_path, topic_content)
+        written_paths.append(file_path)
         written_files.add(file_path.resolve())
 
-    # Remove stale topic files if any exist
-    try:
-        for existing in topics_dir.glob("*.md"):
-            if existing.resolve() not in written_files:
-                existing.unlink()
-    except Exception as exc:
-        logger.warning(f"Error cleaning up stale topic files: {exc}")
+    # Remove stale topic files if generating all topics
+    if affected_set is None:
+        try:
+            for existing in topics_dir.glob("*.md"):
+                if existing.resolve() not in written_files:
+                    existing.unlink()
+        except Exception as exc:
+            logger.warning(f"Error cleaning up stale topic files: {exc}")
+
+    return written_paths
 
 
 def _atomic_write(path: Path, content: str) -> None:
