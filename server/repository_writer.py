@@ -19,6 +19,7 @@ from config import LEETCODE_REPO_PATH
 from documentation.generator import DocumentationGenerator
 from documentation.models import ProblemMetadata
 from git_service import InvalidRepositoryError
+from metadata.metadata_service import MetadataService
 from schemas import Submission
 
 logger = logging.getLogger(__name__)
@@ -124,7 +125,11 @@ def _read_existing_timestamp(readme_path: Path) -> Optional[str]:
     return None
 
 
-def write_submission(submission: Submission, repo_path: Optional[Path | str] = None) -> Dict[str, object]:
+def write_submission(
+    submission: Submission,
+    repo_path: Optional[Path | str] = None,
+    metadata_service: Optional[MetadataService] = None,
+) -> Dict[str, object]:
     """Write `submission` into `<repo>/<Difficulty>/<Number>-<Title>/solution.<ext>`.
 
     Returns a JSON-serializable dict indicating whether the submission created
@@ -149,6 +154,16 @@ def write_submission(submission: Submission, repo_path: Optional[Path | str] = N
     existing_code = solution_path.read_text(encoding="utf-8") if solution_path.exists() else None
     existing_readme = readme_path.read_text(encoding="utf-8") if readme_path.exists() else None
     generated_at = _read_existing_timestamp(readme_path) if existing_code == submission.code else None
+
+    # Fetch enriched metadata via MetadataService
+    service = metadata_service or MetadataService(repo_root=repo_root)
+    enriched = service.get_metadata(
+        submission.slug,
+        problem_number=submission.id,
+        title=submission.title,
+        difficulty=submission.difficulty,
+    )
+
     metadata = ProblemMetadata(
         problem_number=submission.id,
         title=submission.title,
@@ -158,6 +173,16 @@ def write_submission(submission: Submission, repo_path: Optional[Path | str] = N
         url=_leetcode_url(submission.slug),
         generated_at=generated_at or _current_timestamp(),
         folder=Path(submission.difficulty) / folder_name,
+        topics=enriched.topic_names(),
+        companies=enriched.company_names(),
+        acceptance_rate=enriched.acceptance_rate,
+        likes=enriched.likes,
+        dislikes=enriched.dislikes,
+        hints=enriched.hints,
+        similar_questions=[
+            {"title": r.title, "title_slug": r.title_slug, "difficulty": r.difficulty}
+            for r in enriched.similar_questions
+        ],
     )
     problem_readme = DocumentationGenerator().generate_problem_readme(metadata, submission.code)
 
