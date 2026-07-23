@@ -19,13 +19,7 @@ ${url}
 
 ---
 
-## Language
-
-${language}
-
----
-
-## Solution
+${sections_block}## Solution
 
 ${solution_block}
 
@@ -67,7 +61,7 @@ ${language_distribution}
 
 ---
 
-## Recently Solved
+${topic_distribution_section}${company_distribution_section}## Recently Solved
 
 ${recently_solved}
 
@@ -76,5 +70,18 @@ ${recently_solved}
 ## Complete Problem Index
 
 ${problem_index}
+"""
+)
+
+TOPIC_PAGE_TEMPLATE = Template(
+    """# ${topic_name}
+
+Solved: ${count}
+
+---
+
+## Problems
+
+${problem_list}
 """
 )

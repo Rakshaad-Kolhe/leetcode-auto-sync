@@ -61,22 +61,56 @@ def generate_statistics(problems: List[ProblemMetadata]) -> RepositoryStatistics
 
     difficulty_counts = Counter(problem.difficulty for problem in problems)
     languages = Counter(language_badge(problem.language) for problem in problems)
+
+    # Topics and Companies counters
+    topic_counter: Counter[str] = Counter()
+    for problem in problems:
+        for topic in problem.topics:
+            topic_counter[topic] += 1
+
+    company_counter: Counter[str] = Counter()
+    for problem in problems:
+        for company in problem.companies:
+            company_counter[company] += 1
+
     latest = sorted(problems, key=lambda problem: (problem.generated_at, -problem.problem_number), reverse=True)[:10]
     by_timestamp = sorted(problems, key=lambda problem: (problem.generated_at, -problem.problem_number), reverse=True)
     newest = by_timestamp[0] if by_timestamp else None
     oldest = by_timestamp[-1] if by_timestamp else None
     generated_at = newest.generated_at if newest else "N/A"
 
+    # Acceptance rate average
+    rates: list[float] = []
+    for problem in problems:
+        if problem.acceptance_rate:
+            cleaned = problem.acceptance_rate.rstrip("%").strip()
+            try:
+                rates.append(float(cleaned))
+            except ValueError:
+                pass
+    avg_ac_rate = (sum(rates) / len(rates)) if rates else None
+
+    total_count = len(problems)
+    coverage = {
+        "topics": (sum(1 for p in problems if p.topics) / total_count * 100) if total_count else 0.0,
+        "companies": (sum(1 for p in problems if p.companies) / total_count * 100) if total_count else 0.0,
+        "acceptance_rate": (sum(1 for p in problems if p.acceptance_rate) / total_count * 100) if total_count else 0.0,
+    }
+
     return RepositoryStatistics(
-        total_solved=len(problems),
+        total_solved=total_count,
         easy_solved=difficulty_counts.get("Easy", 0),
         medium_solved=difficulty_counts.get("Medium", 0),
         hard_solved=difficulty_counts.get("Hard", 0),
         language_distribution=dict(languages),
+        topic_distribution=dict(topic_counter),
+        company_distribution=dict(company_counter),
         latest_solved=latest,
         newest_problem=newest,
         oldest_problem=oldest,
         generated_at=generated_at,
+        average_acceptance_rate=avg_ac_rate,
+        metadata_coverage=coverage,
     )
 
 
@@ -99,6 +133,13 @@ def _metadata_from_problem_dir(root: Path, difficulty: str, problem_dir: Path) -
     slug = _slug_from_url(url) or _slugify(title)
     generated_at = _parse_last_updated(content) or "N/A"
 
+    acceptance_rate = _parse_section(content, "Acceptance Rate")
+    likes = _parse_int_section(content, "Likes")
+    dislikes = _parse_int_section(content, "Dislikes")
+    topics = _parse_list_section(content, "Topics")
+    companies = _parse_list_section(content, "Companies")
+    hints = _parse_list_section(content, "Hints")
+
     return ProblemMetadata(
         problem_number=number,
         title=title,
@@ -108,6 +149,12 @@ def _metadata_from_problem_dir(root: Path, difficulty: str, problem_dir: Path) -
         url=url,
         generated_at=generated_at,
         folder=problem_dir.relative_to(root),
+        topics=topics,
+        companies=companies,
+        acceptance_rate=acceptance_rate,
+        likes=likes,
+        dislikes=dislikes,
+        hints=hints,
     )
 
 
@@ -141,6 +188,30 @@ def _parse_section(content: str, section: str) -> Optional[str]:
         return None
     value = match.group(1).strip()
     return value if value else None
+
+
+def _parse_int_section(content: str, section: str) -> Optional[int]:
+    val = _parse_section(content, section)
+    if not val:
+        return None
+    try:
+        return int(val)
+    except ValueError:
+        return None
+
+
+def _parse_list_section(content: str, section: str) -> List[str]:
+    raw = _parse_section(content, section)
+    if not raw:
+        return []
+    items: list[str] = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if line.startswith("- "):
+            line = line[2:].strip()
+        if line:
+            items.append(line)
+    return items
 
 
 def _parse_last_updated(content: str) -> Optional[str]:

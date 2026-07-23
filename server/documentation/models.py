@@ -20,9 +20,12 @@ class ProblemMetadata:
     generated_at: str
     folder: Optional[Path] = None
     topics: List[str] = field(default_factory=list)
+    companies: List[str] = field(default_factory=list)
     acceptance_rate: Optional[str] = None
     likes: Optional[int] = None
     dislikes: Optional[int] = None
+    hints: List[str] = field(default_factory=list)
+    similar_questions: List[Dict[str, str]] = field(default_factory=list)
     extra: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -35,7 +38,11 @@ class RepositoryStatistics:
     medium_solved: int
     hard_solved: int
     language_distribution: Dict[str, int]
-    latest_solved: List[ProblemMetadata]
-    newest_problem: Optional[ProblemMetadata]
-    oldest_problem: Optional[ProblemMetadata]
-    generated_at: str
+    topic_distribution: Dict[str, int] = field(default_factory=dict)
+    company_distribution: Dict[str, int] = field(default_factory=dict)
+    latest_solved: List[ProblemMetadata] = field(default_factory=list)
+    newest_problem: Optional[ProblemMetadata] = None
+    oldest_problem: Optional[ProblemMetadata] = None
+    generated_at: str = ""
+    average_acceptance_rate: Optional[float] = None
+    metadata_coverage: Dict[str, float] = field(default_factory=dict)
