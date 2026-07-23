@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Iterable, Sequence
+from urllib.parse import quote
 
 
 def heading(level: int, text: str) -> str:
@@ -46,6 +47,13 @@ def table(headers: Sequence[str], rows: Sequence[Sequence[object]], *, align_rig
         cells = [_escape_cell(str(cell)) for cell in row]
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)
+
+
+def markdown_link(text: str, target: str) -> str:
+    """Render a markdown link with a URL-encoded relative target."""
+
+    encoded = quote(target.replace("\\", "/"), safe="/#")
+    return f"[{text}]({encoded})"
 
 
 def _escape_cell(value: str) -> str:

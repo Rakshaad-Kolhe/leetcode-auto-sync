@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Dict
+from urllib.parse import quote
 
 
 LANGUAGE_DISPLAY: Dict[str, str] = {
@@ -61,6 +62,14 @@ LANGUAGE_FENCE: Dict[str, str] = {
     "sql": "sql",
 }
 
+DIFFICULTY_COLORS: Dict[str, str] = {
+    "Easy": "brightgreen",
+    "Medium": "orange",
+    "Hard": "red",
+}
+
+LANGUAGE_BADGE_COLOR = "blue"
+
 
 def difficulty_badge(difficulty: str) -> str:
     """Return the display value for a difficulty badge."""
@@ -81,3 +90,43 @@ def language_fence(language: str) -> str:
     """Return the fenced-code language identifier."""
 
     return LANGUAGE_FENCE.get(language.strip().lower(), language.strip().lower())
+
+
+def difficulty_indicator(difficulty: str) -> str:
+    """Return a compact visual difficulty label for index tables."""
+
+    normalized = difficulty_badge(difficulty)
+    indicators = {
+        "Easy": "🟢 Easy",
+        "Medium": "🟠 Medium",
+        "Hard": "🔴 Hard",
+    }
+    return indicators.get(normalized, normalized)
+
+
+def difficulty_badge_color(difficulty: str) -> str:
+    """Return the Shields color for a difficulty."""
+
+    return DIFFICULTY_COLORS.get(difficulty_badge(difficulty), "lightgrey")
+
+
+def shields_badge(label: str, message: str, color: str) -> str:
+    """Render a reusable GitHub Shields badge markdown image."""
+
+    encoded_label = quote(label, safe="")
+    encoded_message = quote(message, safe="")
+    encoded_color = quote(color, safe="")
+    return f"![{label}](https://img.shields.io/badge/{encoded_label}-{encoded_message}-{encoded_color})"
+
+
+def difficulty_shields_badge(difficulty: str) -> str:
+    """Render a difficulty badge."""
+
+    normalized = difficulty_badge(difficulty)
+    return shields_badge("Difficulty", normalized, difficulty_badge_color(normalized))
+
+
+def language_shields_badge(language: str) -> str:
+    """Render a language badge."""
+
+    return shields_badge("Language", language_badge(language), LANGUAGE_BADGE_COLOR)

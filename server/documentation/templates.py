@@ -7,7 +7,9 @@ from string import Template
 PROBLEM_README_TEMPLATE = Template(
     """# ${problem_number}. ${title}
 
-Difficulty: ${difficulty}
+${difficulty_badge}
+
+${language_badge}
 
 ---
 
@@ -29,7 +31,7 @@ ${solution_block}
 
 ---
 
-Generated automatically by LeetCode Auto Sync
+Generated automatically by LeetCode Auto Sync.
 
 Last Updated:
 ${generated_at}
@@ -45,7 +47,17 @@ ROOT_README_TEMPLATE = Template(
 
 ${statistics_table}
 
-Generated: ${generated_at}
+Last Updated: ${generated_at}
+
+Newest Problem: ${newest_problem}
+
+Oldest Problem: ${oldest_problem}
+
+---
+
+## Difficulty Distribution
+
+${difficulty_distribution}
 
 ---
 

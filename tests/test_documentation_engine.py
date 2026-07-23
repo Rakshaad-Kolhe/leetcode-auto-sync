@@ -27,7 +27,8 @@ class DocumentationEngineTests(unittest.TestCase):
         content = DocumentationGenerator().generate_problem_readme(metadata, "class Solution {};")
 
         self.assertIn("# 1260. Shift 2D Grid", content)
-        self.assertIn("Difficulty: Medium", content)
+        self.assertIn("![Difficulty](https://img.shields.io/badge/Difficulty-Medium-orange)", content)
+        self.assertIn("![Language](https://img.shields.io/badge/Language-C%2B%2B-blue)", content)
         self.assertIn("https://leetcode.com/problems/shift-2d-grid/", content)
         self.assertIn("## Language\n\nC++", content)
         self.assertIn("```cpp\nclass Solution {};\n```", content)
@@ -46,7 +47,7 @@ class DocumentationEngineTests(unittest.TestCase):
         self.assertIn("| Total Solved | 2 |", content)
         self.assertIn("## Language Distribution", content)
         self.assertIn("| C++ | 2 |", content)
-        self.assertLess(content.index("| 1 | Two Sum | Easy | C++ |"), content.index("| 1260 | Shift 2D Grid | Medium | C++ |"))
+        self.assertLess(content.index("| 1 | Two Sum | 🟢 Easy | C++ |"), content.index("| 1260 | Shift 2D Grid | 🟠 Medium | C++ |"))
 
     def test_markdown_helpers_render_common_blocks(self) -> None:
         self.assertEqual(heading(2, "Problem"), "## Problem")
@@ -92,7 +93,7 @@ class DocumentationEngineTests(unittest.TestCase):
             scanned = scan_repository(repo)
 
         self.assertEqual(scanned[0].problem_number, 1260)
-        self.assertIn("| 1260 | Shift 2D Grid | Medium | C++ | Medium/Shift 2D Grid |", content)
+        self.assertIn("| 1260 | Shift 2D Grid | 🟠 Medium | C++ | [1260-Shift 2D Grid](Medium/1260-Shift%202D%20Grid) |", content)
 
     def _metadata(
         self,
@@ -104,6 +105,7 @@ class DocumentationEngineTests(unittest.TestCase):
         language: str = "cpp",
         generated_at: str = "2026-07-23T10:00:00Z",
     ) -> ProblemMetadata:
+        folder_name = f"{problem_number:04d}-{title}"
         return ProblemMetadata(
             problem_number=problem_number,
             title=title,
@@ -112,7 +114,7 @@ class DocumentationEngineTests(unittest.TestCase):
             language=language,
             url=f"https://leetcode.com/problems/{slug}/",
             generated_at=generated_at,
-            folder=Path(difficulty) / title,
+            folder=Path(difficulty) / folder_name,
         )
 
 
