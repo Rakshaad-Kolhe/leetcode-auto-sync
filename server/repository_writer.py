@@ -195,21 +195,24 @@ def write_submission(
         ],
     )
 
-    _atomic_write(solution_path, submission.code)
-
     problem_readme = None
     if app_config.repository.auto_generate_readme:
         generator = DocumentationGenerator(app_config)
         problem_readme = generator.generate_problem_readme(metadata, submission.code)
+
+    from sync.file_diff import FileDiff
+    code_changed = FileDiff.has_semantic_change(existing_code, submission.code)
+    readme_changed = problem_readme is not None and FileDiff.has_semantic_change(existing_readme, problem_readme)
+    changed = code_changed or readme_changed
+
+    if code_changed:
+        _atomic_write(solution_path, submission.code)
+
+    if readme_changed and problem_readme is not None:
         _atomic_write(readme_path, problem_readme)
 
     relative_output = (relative_folder / solution_path.name).as_posix()
     readme_output = (relative_folder / readme_path.name).as_posix()
-    changed = existing_code != submission.code or (problem_readme is not None and existing_readme != problem_readme)
-
-    logger.info(f"Repository:\n{repo_root}")
-    logger.info(f"Difficulty:\n{submission.difficulty}")
-    logger.info(f"Output:\n{relative_output}")
 
     return {
         "status": "created" if created else "updated",
