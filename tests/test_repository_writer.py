@@ -41,10 +41,12 @@ class RepositoryWriterTests(unittest.TestCase):
 
             res = write_submission(submission, repo_path=target_repo)
 
-            target_file = target_repo / "Easy" / "Two Sum.cpp"
-            backend_file = Path(backend_dir) / "Two Sum.cpp"
+            target_file = target_repo / "Easy" / "Two Sum" / "solution.cpp"
+            target_readme = target_repo / "Easy" / "Two Sum" / "README.md"
+            backend_file = Path(backend_dir) / "Two Sum" / "solution.cpp"
 
             self.assertTrue(target_file.exists())
+            self.assertTrue(target_readme.exists())
             self.assertFalse(backend_file.exists())
             self.assertEqual(res["status"], "created")
 
@@ -65,7 +67,7 @@ class RepositoryWriterTests(unittest.TestCase):
                     code="pass",
                 )
                 write_submission(sub, repo_path=repo)
-                expected_path = repo / diff / f"Sample {diff}.py"
+                expected_path = repo / diff / f"Sample {diff}" / "solution.py"
                 self.assertTrue(expected_path.exists())
 
     def test_filename_sanitization(self) -> None:
@@ -88,7 +90,7 @@ class RepositoryWriterTests(unittest.TestCase):
                 code="class Solution {}",
             )
             write_submission(sub, repo_path=repo)
-            expected_file = repo / "Hard" / "What is 2+2 Math Test.java"
+            expected_file = repo / "Hard" / "What is 2+2 Math Test" / "solution.java"
             self.assertTrue(expected_file.exists())
 
     def test_extension_mapping_all_supported_languages(self) -> None:
@@ -116,6 +118,7 @@ class RepositoryWriterTests(unittest.TestCase):
             "PHP": ".php",
             "Dart": ".dart",
             "Scala": ".scala",
+            "SQL": ".sql",
         }
 
         for lang, expected_ext in mappings.items():

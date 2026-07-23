@@ -54,9 +54,10 @@ class RootReadmeGenerationTests(unittest.TestCase):
         self.assertIn("| Easy | 1 |", content)
         self.assertIn("| Medium | 2 |", content)
         self.assertIn("| Hard | 1 |", content)
-        self.assertLess(content.index("| 1 | Two Sum | Easy | C++ |"), content.index("| 23 | Merge k Sorted Lists | Hard | TypeScript |"))
-        self.assertLess(content.index("| 23 | Merge k Sorted Lists | Hard | TypeScript |"), content.index("| 49 | Group Anagrams | Medium | Python |"))
-        self.assertLess(content.index("| 49 | Group Anagrams | Medium | Python |"), content.index("| 146 | LRU Cache | Medium | Java |"))
+        index = content.split("## Complete Problem Index", 1)[1]
+        self.assertLess(index.index("| 1 | Two Sum | Easy | C++ |"), index.index("| 23 | Merge k Sorted Lists | Hard | TypeScript |"))
+        self.assertLess(index.index("| 23 | Merge k Sorted Lists | Hard | TypeScript |"), index.index("| 49 | Group Anagrams | Medium | Python |"))
+        self.assertLess(index.index("| 49 | Group Anagrams | Medium | Python |"), index.index("| 146 | LRU Cache | Medium | Java |"))
 
     def test_multiple_easy_problems_and_languages_are_supported(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -85,7 +86,8 @@ class RootReadmeGenerationTests(unittest.TestCase):
 
         self.assertEqual(first, second)
         self.assertEqual(second, third)
-        self.assertEqual(second.count("| 49 | Group Anagrams | Medium | JavaScript |"), 1)
+        index = second.split("## Complete Problem Index", 1)[1]
+        self.assertEqual(index.count("| 49 | Group Anagrams | Medium | JavaScript |"), 1)
 
     @staticmethod
     def _write_solution(repo_root: Path, difficulty: str, problem_dir: str, filename: str) -> Path:
