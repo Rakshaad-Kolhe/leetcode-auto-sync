@@ -27,7 +27,7 @@ class RootReadmeGenerationTests(unittest.TestCase):
         self.assertIn("| Easy | 0 |", content)
         self.assertIn("| Medium | 0 |", content)
         self.assertIn("| Hard | 0 |", content)
-        self.assertIn("| # | Problem | Difficulty | Language |", content)
+        self.assertIn("| # | Problem | Difficulty | Language | Folder |", content)
 
     def test_single_problem_is_indexed_with_language_display_name(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -38,7 +38,7 @@ class RootReadmeGenerationTests(unittest.TestCase):
 
         self.assertIn("| Total Solved | 1 |", content)
         self.assertIn("| Easy | 1 |", content)
-        self.assertIn("| 1 | Two Sum | Easy | C++ |", content)
+        self.assertIn("| 1 | Two Sum | 🟢 Easy | C++ |", content)
 
     def test_mixed_difficulties_are_sorted_by_problem_number(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -55,9 +55,9 @@ class RootReadmeGenerationTests(unittest.TestCase):
         self.assertIn("| Medium | 2 |", content)
         self.assertIn("| Hard | 1 |", content)
         index = content.split("## Complete Problem Index", 1)[1]
-        self.assertLess(index.index("| 1 | Two Sum | Easy | C++ |"), index.index("| 23 | Merge k Sorted Lists | Hard | TypeScript |"))
-        self.assertLess(index.index("| 23 | Merge k Sorted Lists | Hard | TypeScript |"), index.index("| 49 | Group Anagrams | Medium | Python |"))
-        self.assertLess(index.index("| 49 | Group Anagrams | Medium | Python |"), index.index("| 146 | LRU Cache | Medium | Java |"))
+        self.assertLess(index.index("| 1 | Two Sum | 🟢 Easy | C++ |"), index.index("| 23 | Merge k Sorted Lists | 🔴 Hard | TypeScript |"))
+        self.assertLess(index.index("| 23 | Merge k Sorted Lists | 🔴 Hard | TypeScript |"), index.index("| 49 | Group Anagrams | 🟠 Medium | Python |"))
+        self.assertLess(index.index("| 49 | Group Anagrams | 🟠 Medium | Python |"), index.index("| 146 | LRU Cache | 🟠 Medium | Java |"))
 
     def test_multiple_easy_problems_and_languages_are_supported(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -70,9 +70,9 @@ class RootReadmeGenerationTests(unittest.TestCase):
             content = generate_readme(repo_root).read_text(encoding="utf-8")
 
         self.assertIn("| Easy | 4 |", content)
-        self.assertIn("| 9 | Palindrome Number | Easy | Go |", content)
-        self.assertIn("| 13 | Roman to Integer | Easy | C# |", content)
-        self.assertIn("| 20 | Valid Parentheses | Easy | Swift |", content)
+        self.assertIn("| 9 | Palindrome Number | 🟢 Easy | Go |", content)
+        self.assertIn("| 13 | Roman to Integer | 🟢 Easy | C# |", content)
+        self.assertIn("| 20 | Valid Parentheses | 🟢 Easy | Swift |", content)
 
     def test_generation_is_idempotent_after_problem_update(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -87,7 +87,7 @@ class RootReadmeGenerationTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(second, third)
         index = second.split("## Complete Problem Index", 1)[1]
-        self.assertEqual(index.count("| 49 | Group Anagrams | Medium | JavaScript |"), 1)
+        self.assertEqual(index.count("| 49 | Group Anagrams | 🟠 Medium | JavaScript |"), 1)
 
     @staticmethod
     def _write_solution(repo_root: Path, difficulty: str, problem_dir: str, filename: str) -> Path:

@@ -36,4 +36,6 @@ class RepositoryStatistics:
     hard_solved: int
     language_distribution: Dict[str, int]
     latest_solved: List[ProblemMetadata]
+    newest_problem: Optional[ProblemMetadata]
+    oldest_problem: Optional[ProblemMetadata]
     generated_at: str

@@ -79,16 +79,10 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 	logger.info("service_stopping", extra={"service": SERVICE_NAME})
 
 
+from git_service import GitServiceError, InvalidRepositoryError
+
 app = FastAPI(title=SERVICE_NAME, version=SERVICE_VERSION, lifespan=lifespan)
 
-logger.info("CORS: configured to allow all chrome extensions via regex")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origin_regex=r"chrome-extension://.*",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next: Any) -> Response:
@@ -105,6 +99,16 @@ async def log_requests(request: Request, call_next: Any) -> Response:
 		},
 	)
 	return response
+
+
+logger.info("CORS: configured to allow all chrome extensions via regex")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"chrome-extension://.*",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.exception_handler(HTTPException)
@@ -175,8 +179,8 @@ async def submit(submission: Submission, request: Request) -> dict:
 
 	try:
 		ack = process_submission(submission)
-	except ValueError as exc:
-		# Known business validation (e.g. unsupported language)
+	except (ValueError, InvalidRepositoryError, GitServiceError) as exc:
+		# Known business or repository validation failure
 		raise HTTPException(status_code=400, detail=str(exc))
 
 	return ack

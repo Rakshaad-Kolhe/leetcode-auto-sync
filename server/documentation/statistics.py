@@ -62,7 +62,10 @@ def generate_statistics(problems: List[ProblemMetadata]) -> RepositoryStatistics
     difficulty_counts = Counter(problem.difficulty for problem in problems)
     languages = Counter(language_badge(problem.language) for problem in problems)
     latest = sorted(problems, key=lambda problem: (problem.generated_at, -problem.problem_number), reverse=True)[:10]
-    generated_at = latest[0].generated_at if latest else "N/A"
+    by_timestamp = sorted(problems, key=lambda problem: (problem.generated_at, -problem.problem_number), reverse=True)
+    newest = by_timestamp[0] if by_timestamp else None
+    oldest = by_timestamp[-1] if by_timestamp else None
+    generated_at = newest.generated_at if newest else "N/A"
 
     return RepositoryStatistics(
         total_solved=len(problems),
@@ -71,6 +74,8 @@ def generate_statistics(problems: List[ProblemMetadata]) -> RepositoryStatistics
         hard_solved=difficulty_counts.get("Hard", 0),
         language_distribution=dict(languages),
         latest_solved=latest,
+        newest_problem=newest,
+        oldest_problem=oldest,
         generated_at=generated_at,
     )
 

@@ -1,7 +1,7 @@
 """Filesystem utilities to create and update a local LeetCode repository layout.
 
 This module is responsible for writing solution folders under difficulty
-folders (e.g. `Easy/Two Sum/`) in the configured target repository (`LEETCODE_REPO_PATH`).
+folders (e.g. `Easy/0001-Two Sum/`) in the configured target repository (`LEETCODE_REPO_PATH`).
 It is intentionally isolated from routing concerns so it can be tested independently.
 """
 
@@ -63,6 +63,12 @@ def sanitize_filename(title: str) -> str:
     return cleaned
 
 
+def format_problem_folder_name(problem_number: int, title: str) -> str:
+    """Return `<zero-padded number>-<sanitized title>` for a problem folder."""
+
+    return f"{problem_number:04d}-{sanitize_filename(title)}"
+
+
 def get_file_extension(language: str) -> str:
     """Return file extension for normalized language name."""
 
@@ -119,7 +125,7 @@ def _read_existing_timestamp(readme_path: Path) -> Optional[str]:
 
 
 def write_submission(submission: Submission, repo_path: Optional[Path | str] = None) -> Dict[str, object]:
-    """Write `submission` into `<repo>/<Difficulty>/<Title>/solution.<ext>`.
+    """Write `submission` into `<repo>/<Difficulty>/<Number>-<Title>/solution.<ext>`.
 
     Returns a JSON-serializable dict indicating whether the submission created
     new files or updated existing ones.
@@ -129,8 +135,14 @@ def write_submission(submission: Submission, repo_path: Optional[Path | str] = N
     validate_repository(repo_root)
 
     sanitized_title = sanitize_filename(submission.title)
+    folder_name = format_problem_folder_name(submission.id, submission.title)
     extension = get_file_extension(submission.language)
-    problem_folder = repo_root / submission.difficulty / sanitized_title
+    difficulty_folder = repo_root / submission.difficulty
+    problem_folder = difficulty_folder / folder_name
+    legacy_problem_folder = difficulty_folder / sanitized_title
+    if legacy_problem_folder.exists() and not problem_folder.exists():
+        legacy_problem_folder.rename(problem_folder)
+
     solution_path = problem_folder / f"solution{extension}"
     readme_path = problem_folder / "README.md"
 
@@ -145,7 +157,7 @@ def write_submission(submission: Submission, repo_path: Optional[Path | str] = N
         language=submission.language,
         url=_leetcode_url(submission.slug),
         generated_at=generated_at or _current_timestamp(),
-        folder=Path(submission.difficulty) / sanitized_title,
+        folder=Path(submission.difficulty) / folder_name,
     )
     problem_readme = DocumentationGenerator().generate_problem_readme(metadata, submission.code)
 
@@ -153,8 +165,8 @@ def write_submission(submission: Submission, repo_path: Optional[Path | str] = N
     _atomic_write(solution_path, submission.code)
     _atomic_write(readme_path, problem_readme)
 
-    relative_output = (Path(submission.difficulty) / sanitized_title / solution_path.name).as_posix()
-    readme_output = (Path(submission.difficulty) / sanitized_title / readme_path.name).as_posix()
+    relative_output = (Path(submission.difficulty) / folder_name / solution_path.name).as_posix()
+    readme_output = (Path(submission.difficulty) / folder_name / readme_path.name).as_posix()
     changed = existing_code != submission.code or existing_readme != problem_readme
 
     logger.info(f"Repository:\n{repo_root}")
