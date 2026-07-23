@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Dict
 
-from config import LEETCODE_REPO_PATH
 from git_service import GitService
 from repository_writer import write_submission
 from root_readme import generate_readme
@@ -23,8 +23,8 @@ def process_submission(submission: Submission) -> Dict[str, object]:
 
     result = write_submission(submission)
 
-    # After a successful write, regenerate the root README deterministically
-    generate_readme(LEETCODE_REPO_PATH)
+    # After a successful write, regenerate the root README deterministically.
+    generate_readme(Path(result["repository_path"]))
 
     git_result = GitService().sync(
         problem_id=submission.id,

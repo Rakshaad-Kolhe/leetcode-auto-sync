@@ -1,12 +1,13 @@
 """Filesystem utilities to create and update a local LeetCode repository layout.
 
-This module is responsible for writing solution files directly under difficulty
-folders (e.g. `Easy/`, `Medium/`, `Hard/`) in the configured target repository (`LEETCODE_REPO_PATH`).
+This module is responsible for writing solution folders under difficulty
+folders (e.g. `Easy/Two Sum/`) in the configured target repository (`LEETCODE_REPO_PATH`).
 It is intentionally isolated from routing concerns so it can be tested independently.
 """
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import logging
 import os
 import re
@@ -15,6 +16,8 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from config import LEETCODE_REPO_PATH
+from documentation.generator import DocumentationGenerator
+from documentation.models import ProblemMetadata
 from git_service import InvalidRepositoryError
 from schemas import Submission
 
@@ -45,6 +48,7 @@ LANGUAGE_TO_EXTENSION: Dict[str, str] = {
     "racket": ".rkt",
     "erlang": ".erl",
     "elixir": ".ex",
+    "sql": ".sql",
 }
 
 
@@ -94,8 +98,28 @@ def _atomic_write(path: Path, content: str) -> None:
             pass
 
 
+def _leetcode_url(slug: str) -> str:
+    return f"https://leetcode.com/problems/{slug.strip('/')}/"
+
+
+def _current_timestamp() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _read_existing_timestamp(readme_path: Path) -> Optional[str]:
+    if not readme_path.exists():
+        return None
+    lines = readme_path.read_text(encoding="utf-8").splitlines()
+    for index, line in enumerate(lines):
+        if line.strip() == "Last Updated:":
+            if index + 1 < len(lines):
+                value = lines[index + 1].strip()
+                return value or None
+    return None
+
+
 def write_submission(submission: Submission, repo_path: Optional[Path | str] = None) -> Dict[str, object]:
-    """Write solution file for `submission` into `<repo>/<Difficulty>/<Title>.<ext>`.
+    """Write `submission` into `<repo>/<Difficulty>/<Title>/solution.<ext>`.
 
     Returns a JSON-serializable dict indicating whether the submission created
     new files or updated existing ones.
@@ -104,18 +128,34 @@ def write_submission(submission: Submission, repo_path: Optional[Path | str] = N
     repo_root = Path(repo_path or LEETCODE_REPO_PATH).expanduser().resolve()
     validate_repository(repo_root)
 
-    difficulty_folder = repo_root / submission.difficulty
-    difficulty_folder.mkdir(parents=True, exist_ok=True)
-
     sanitized_title = sanitize_filename(submission.title)
     extension = get_file_extension(submission.language)
-    filename = f"{sanitized_title}{extension}"
-    solution_path = difficulty_folder / filename
+    problem_folder = repo_root / submission.difficulty / sanitized_title
+    solution_path = problem_folder / f"solution{extension}"
+    readme_path = problem_folder / "README.md"
 
-    created = not solution_path.exists()
+    existing_code = solution_path.read_text(encoding="utf-8") if solution_path.exists() else None
+    existing_readme = readme_path.read_text(encoding="utf-8") if readme_path.exists() else None
+    generated_at = _read_existing_timestamp(readme_path) if existing_code == submission.code else None
+    metadata = ProblemMetadata(
+        problem_number=submission.id,
+        title=submission.title,
+        slug=submission.slug,
+        difficulty=submission.difficulty,
+        language=submission.language,
+        url=_leetcode_url(submission.slug),
+        generated_at=generated_at or _current_timestamp(),
+        folder=Path(submission.difficulty) / sanitized_title,
+    )
+    problem_readme = DocumentationGenerator().generate_problem_readme(metadata, submission.code)
+
+    created = not solution_path.exists() or not readme_path.exists()
     _atomic_write(solution_path, submission.code)
+    _atomic_write(readme_path, problem_readme)
 
-    relative_output = f"{submission.difficulty}/{filename}"
+    relative_output = (Path(submission.difficulty) / sanitized_title / solution_path.name).as_posix()
+    readme_output = (Path(submission.difficulty) / sanitized_title / readme_path.name).as_posix()
+    changed = existing_code != submission.code or existing_readme != problem_readme
 
     logger.info(f"Repository:\n{repo_root}")
     logger.info(f"Difficulty:\n{submission.difficulty}")
@@ -125,5 +165,9 @@ def write_submission(submission: Submission, repo_path: Optional[Path | str] = N
         "status": "created" if created else "updated",
         "problem": {"id": submission.id, "title": submission.title},
         "output_file": relative_output,
+        "readme_file": readme_output,
+        "repository_path": str(repo_root),
         "solution_path": str(solution_path),
+        "readme_path": str(readme_path),
+        "changed": changed,
     }

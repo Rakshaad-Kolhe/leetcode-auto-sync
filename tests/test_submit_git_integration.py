@@ -67,7 +67,7 @@ class SubmitGitIntegrationTests(unittest.TestCase):
             self._git(repo, "checkout", "--detach")
 
             result = self._process(repo, self._submission(code="print('new')\n"))
-            solution_path = repo / "Medium" / "Group Anagrams.py"
+            solution_path = repo / "Medium" / "Group Anagrams" / "solution.py"
             solution_exists = solution_path.exists()
 
         self.assertEqual(result["status"], "created")
