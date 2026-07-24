@@ -19,6 +19,7 @@
         "submission/submission_state.js",
         "submission/submission_detector.js",
         "services/submission_service.js",
+        "models/problem_identity.js",
         "models/submission_model.js",
         "parser/metadata_parser.js",
         "services/metadata_service.js",

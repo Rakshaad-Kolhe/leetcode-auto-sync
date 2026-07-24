@@ -248,22 +248,49 @@
 
 
 
+  function clearCache() {
+    cachedDifficulty = null;
+    cachedTitleAndId = null;
+    cachedSlug = null;
+    cachedLanguage = null;
+    Logger.info("MetadataParser: Internal cache cleared due to navigation");
+  }
+
   const MetadataParser = {
+    clearCache,
+
     /**
-     * Scrapes the page DOM for metadata.
+     * Scrapes the page DOM for metadata atomically.
      * @returns {Object|null} Semi-parsed metadata properties, or null on total parse failure.
      */
     parse() {
       try {
+        const url = PageContext.getCurrentUrl();
+        const slug = PageContext.getProblemSlug(url);
+
+        // Clear stale cached metadata if slug has changed
+        if (cachedSlug && cachedSlug !== slug) {
+          clearCache();
+        }
+
         const titleAndId = extractTitleAndId();
         const difficulty = extractDifficulty();
         const language = extractLanguage();
-        const url = PageContext.getCurrentUrl();
-        const slug = PageContext.getProblemSlug(url);
 
         if (!titleAndId) {
           Logger.warn("Parser: Failed to extract Problem Title and ID");
           return null;
+        }
+
+        // Cross-validation: Check if title and slug align
+        const normalizedTitle = titleAndId.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+        if (slug && normalizedTitle && !slug.includes(normalizedTitle) && !normalizedTitle.includes(slug)) {
+          Logger.warn(`Parser: Cross-validation warning: title "${titleAndId.title}" does not align with URL slug "${slug}". Re-extracting directly...`);
+          const direct = extractTitleAndIdDirect();
+          if (direct && direct.title !== titleAndId.title) {
+            titleAndId.id = direct.id;
+            titleAndId.title = direct.title;
+          }
         }
 
         return {
