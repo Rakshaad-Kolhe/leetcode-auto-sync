@@ -1,4 +1,4 @@
-"""Structured logging package."""
+"""Structured telemetry logging package."""
 
 from .events import SyncEvent
 from .formatter import HumanFormatter, JSONFormatter
