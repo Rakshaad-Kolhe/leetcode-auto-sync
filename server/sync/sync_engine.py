@@ -19,11 +19,16 @@ from metrics import MetricsCollector
 from repository_writer import _atomic_write, _current_timestamp, _leetcode_url, _read_existing_timestamp, validate_repository
 from schemas import Submission
 
+import hashlib
 from .change_detector import ChangeDetector
 from .commit_planner import CommitPlanner
 from .file_diff import FileDiff
 from .repository_state import RepositoryState, build_repository_state
 from .snapshot import TransactionSnapshot
+
+
+class SourceIntegrityError(ValueError):
+    """Raised when source integrity or SHA-256 hash validation fails."""
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +78,13 @@ class SyncEngine:
                 "language": submission.language,
             },
         )
+
+        # Phase 3 & 4: Source Integrity & SHA-256 Hash Verification
+        computed_hash = hashlib.sha256(submission.code.encode("utf-8")).hexdigest()
+        if submission.source_hash and submission.source_hash.lower() != computed_hash.lower():
+            raise SourceIntegrityError(
+                f"Source integrity SHA-256 verification failed! Expected payload hash '{submission.source_hash}', computed '{computed_hash}'."
+            )
 
         try:
             state = self.get_state()
@@ -196,6 +208,14 @@ class SyncEngine:
                 _atomic_write(solution_path, submission.code)
                 self.change_detector.record_change(solution_path, submission.code)
                 changed_files.append((relative_folder / solution_path.name).as_posix())
+
+                # Post-write filesystem SHA-256 source integrity check
+                written_code = solution_path.read_text(encoding="utf-8")
+                written_hash = hashlib.sha256(written_code.encode("utf-8")).hexdigest()
+                if written_hash.lower() != computed_hash.lower():
+                    raise SourceIntegrityError(
+                        f"Filesystem source integrity SHA-256 mismatch! Expected '{computed_hash}', written '{written_hash}'."
+                    )
 
             if readme_changed and problem_readme is not None:
                 snapshot.record_file(readme_path)

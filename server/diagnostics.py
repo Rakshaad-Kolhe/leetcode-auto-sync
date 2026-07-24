@@ -65,7 +65,6 @@ def generate_diagnostics_bundle(repo_root: Path | str | None = None) -> Dict[str
             "identity": git_identity,
             "contribution_eligibility": contribution_eligibility,
             "branch_status": branch_status,
-
         }
     except Exception as exc:
         git_info = {"status": "error", "error": str(exc)}
@@ -87,6 +86,11 @@ def generate_diagnostics_bundle(repo_root: Path | str | None = None) -> Dict[str
             "path": str(root_path),
             "git": git_info,
             "cache_exists": cache_exists,
+        },
+        "source_integrity": {
+            "algorithm": "SHA-256",
+            "brace_balancing_enforced": True,
+            "verification_active": True,
         },
         "configuration": sanitized_config,
     }

@@ -18,6 +18,7 @@
 
   /** Diagnostic logs for extraction attempts */
   let extractionDiagnostics = [];
+
   /**
    * Validates code completeness and syntax integrity.
    * @param {string} code - The extracted code string.
@@ -287,7 +288,6 @@
       const topA = parseFloat(a.style.top || "0");
       const topB = parseFloat(b.style.top || "0");
       if (topA !== topB) return topA - topB;
-
       // Fall back to DOM node order
       return a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
     });
