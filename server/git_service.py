@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from config import AUTO_PUSH, DEFAULT_BRANCH, LEETCODE_REPO_PATH, REMOTE_NAME
 from config.config_manager import AppConfig, ConfigManager, GitConfig
+from retry import retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -226,6 +227,7 @@ class GitService:
         logger.info("git_commit_created", extra={"commit": commit_hash})
         return {"committed": True, "commit": commit_hash, "message": message}
 
+    @retry_with_backoff(max_retries=3, initial_delay=0.1, exceptions=(PushFailedError, GitServiceError))
     def push_changes(self, branch: str | None = None) -> Dict[str, Any]:
         """Push the requested branch to the configured remote."""
         self._ensure_git_installed()

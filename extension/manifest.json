@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "LeetCode Auto Sync",
   "description": "Automatically sync accepted LeetCode submissions to your own GitHub repository.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "permissions": ["storage"],
   "host_permissions": ["https://leetcode.com/*"],
   "background": {

@@ -30,6 +30,6 @@ def test_generate_diagnostics_bundle(tmp_path: Path):
 
     bundle = generate_diagnostics_bundle(tmp_path)
     assert bundle["service"] == "leetcode-auto-sync"
-    assert bundle["version"] == "1.0.0"
+    assert bundle["version"] == "1.0.1"
     assert "environment" in bundle
     assert "configuration" in bundle
