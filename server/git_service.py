@@ -410,6 +410,7 @@ class GitService:
             "name": name,
             "email": email,
             "reasons": [] if is_valid else ["Missing or invalid git user.name / user.email config"],
+
         }
 
     def check_contribution_eligibility(self) -> Dict[str, Any]:
@@ -442,6 +443,7 @@ class GitService:
             "warnings": warnings,
             "user_email": identity["email"],
             "user_name": identity["name"],
+
         }
 
     def _verify_remote(self) -> None:

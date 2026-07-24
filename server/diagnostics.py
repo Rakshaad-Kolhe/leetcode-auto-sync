@@ -65,6 +65,7 @@ def generate_diagnostics_bundle(repo_root: Path | str | None = None) -> Dict[str
             "identity": git_identity,
             "contribution_eligibility": contribution_eligibility,
             "branch_status": branch_status,
+
         }
     except Exception as exc:
         git_info = {"status": "error", "error": str(exc)}
