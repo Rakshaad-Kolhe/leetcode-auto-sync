@@ -32,6 +32,10 @@ class SourceIntegrityError(ValueError):
     """Raised when source integrity or SHA-256 hash validation fails."""
 
 
+class MetadataIntegrityError(ValueError):
+    """Raised when problem metadata (title, slug, frontend_id) is inconsistent or mixed."""
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -105,6 +109,17 @@ class SyncEngine:
                 "language": submission.language,
             },
         )
+
+        # Phase 4 & 8: Metadata Integrity & Consistency Verification
+        slug_tokens = set(submission.slug.lower().split("-"))
+        normalized_title = "".join(c if c.isalnum() else "-" for c in submission.title.lower())
+        title_tokens = set(filter(None, normalized_title.split("-")))
+        slug_non_num = {t for t in slug_tokens if not t.isdigit()}
+        title_non_num = {t for t in title_tokens if not t.isdigit()}
+        if slug_non_num and title_non_num and not slug_non_num.intersection(title_non_num):
+            raise MetadataIntegrityError(
+                f"Metadata integrity check failed! Title '{submission.title}' does not match slug '{submission.slug}'."
+            )
 
         # Phase 3: Defensive Conditional Source Integrity & SHA-256 Hash Verification
         source_hash = getattr(submission, "source_hash", None)
@@ -286,6 +301,7 @@ class SyncEngine:
                     except ValueError:
                         pass
 
+            # 6. Execute planned Git Operations (Stage -> Commit -> Push)
             git_result: Dict[str, Any] = {"status": "no_changes", "committed": False, "pushed": False}
 
             if not changed_files and not self.git_service.get_status().get("clean", True):

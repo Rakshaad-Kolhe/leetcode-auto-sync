@@ -37,6 +37,26 @@ class Submission(BaseModel):
             raise ValueError("must not be empty")
         return v2
 
+    @field_validator("slug")
+    @classmethod
+    def validate_slug_title_consistency(cls, v: str, info) -> str:
+        """Validate that problem slug and title are consistent and not mixed from SPA navigation."""
+        clean_slug = v.strip().lower()
+        title = info.data.get("title")
+        if title:
+            norm_title = "".join(c if c.isalnum() else "-" for c in title.lower())
+            norm_title_tokens = set(filter(None, norm_title.split("-")))
+            slug_tokens = set(clean_slug.split("-"))
+
+            slug_non_num = {t for t in slug_tokens if not t.isdigit()}
+            title_non_num = {t for t in norm_title_tokens if not t.isdigit()}
+
+            if slug_non_num and title_non_num and not slug_non_num.intersection(title_non_num):
+                raise ValueError(
+                    f"Metadata integrity mismatch: title '{title}' does not correspond to slug '{clean_slug}'."
+                )
+        return clean_slug
+
     @field_validator("code")
     @classmethod
     def validate_code_not_blank(cls, v: str) -> str:
