@@ -105,9 +105,9 @@
       Logger.info("SolutionService: Solution extraction started");
 
       try {
-        // 1. Extract the code using the hybrid parser
-        Logger.info("SolutionService: Invoking SolutionParser.parse()...");
-        const code = await parser.parse();
+        // 1. Extract the code using the multi-tier parser
+        Logger.info("SolutionService: Invoking SolutionParser.parse() with language:", metadataModel.language);
+        const code = await parser.parse(metadataModel.language);
         Logger.info(`SolutionService: SolutionParser.parse() returned code content of length: ${code ? code.length : 0}`);
 
         // 2. Validate the code content
