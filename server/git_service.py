@@ -392,24 +392,62 @@ class GitService:
         }
 
     def verify_git_identity(self) -> Dict[str, Any]:
-        """Verify git user.name and user.email configuration for identity attribution."""
+        """Verify git user.name and user.email with local -> global fallback & placeholder detection."""
         self._ensure_git_installed()
+
+        # Priority 1: Repository-local config
         try:
-            name = self._run(["config", "user.name"]).stdout.strip()
+            local_name = self._run(["config", "user.name"]).stdout.strip()
         except GitServiceError:
-            name = ""
+            local_name = ""
 
         try:
-            email = self._run(["config", "user.email"]).stdout.strip()
+            local_email = self._run(["config", "user.email"]).stdout.strip()
         except GitServiceError:
-            email = ""
+            local_email = ""
 
-        is_valid = bool(name and email and "@" in email and not email.endswith("@example.com"))
+        # Priority 2: Global config fallback
+        try:
+            global_name = self._run(["config", "--global", "user.name"]).stdout.strip()
+        except GitServiceError:
+            global_name = ""
+
+        try:
+            global_email = self._run(["config", "--global", "user.email"]).stdout.strip()
+        except GitServiceError:
+            global_email = ""
+
+        resolved_name = local_name or global_name
+        resolved_email = local_email or global_email
+
+        name_source = "repository" if local_name else ("global" if global_name else "none")
+        email_source = "repository" if local_email else ("global" if global_email else "none")
+
+        reasons = []
+        is_placeholder = False
+
+        if not resolved_name or not resolved_email:
+            reasons.append("Git identity is unconfigured. Run: git config --global user.name \"Your Name\" && git config --global user.email \"your@email.com\"")
+        else:
+            lower_email = resolved_email.lower()
+            placeholder_emails = {"your@email.com", "test@test.com", "username@example.com", "user@domain.com", "foo@bar.com", "invalid@email.com"}
+            placeholder_domains = ("example.com", "example.org", "example.net", "test.com", "invalid.com")
+
+            if lower_email in placeholder_emails or any(lower_email.endswith("@" + dom) for dom in placeholder_domains):
+                is_placeholder = True
+                reasons.append("Invalid Git identity detected: configured with a placeholder email.")
+
+        is_valid = bool(resolved_name and resolved_email and "@" in resolved_email and not is_placeholder)
+
         return {
             "valid": is_valid,
-            "name": name,
-            "email": email,
-            "reasons": [] if is_valid else ["Missing or invalid git user.name / user.email config"],
+            "name": resolved_name,
+            "email": resolved_email,
+            "repository_identity": {"name": local_name, "email": local_email},
+            "global_identity": {"name": global_name, "email": global_email},
+            "identity_source": {"name": name_source, "email": email_source},
+            "is_placeholder": is_placeholder,
+            "reasons": reasons,
         }
 
     def check_contribution_eligibility(self) -> Dict[str, Any]:
