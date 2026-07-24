@@ -2,6 +2,8 @@
 
 This guide provides step-by-step instructions for installing and onboarding **LeetCode Auto Sync** on Windows, Linux, and macOS.
 
+> **🔒 Git Identity Safety**: LeetCode Auto Sync **NEVER modifies your local or global Git configuration automatically**. It strictly reads, validates, and reports identity issues to protect your commit attribution.
+
 ---
 
 ## Prerequisites
@@ -39,6 +41,15 @@ chmod +x scripts/install.command
 
 ---
 
+## First-Run Diagnostics Doctor
+
+Run the environment doctor to verify all prerequisites before starting:
+```bash
+python scripts/doctor.py
+```
+
+---
+
 ## Starting Backend Service
 
 Run the server using Python:
@@ -57,3 +68,9 @@ Verify backend health by navigating to:
 2. Toggle **Developer mode** on.
 3. Click **Load unpacked** and select the `extension` directory inside the repository.
 4. Click the LeetCode Auto Sync popup icon in your browser toolbar to verify system status.
+
+---
+
+## Upgrading
+
+Existing users upgrading from prior versions should refer to the [Upgrading Guide](UPGRADING.md).

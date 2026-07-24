@@ -18,7 +18,6 @@
 
   /** Diagnostic logs for extraction attempts */
   let extractionDiagnostics = [];
-
   /**
    * Validates code completeness and syntax integrity.
    * @param {string} code - The extracted code string.
@@ -226,7 +225,6 @@
    * Scrapes hidden textareas used by Monaco or CodeMirror.
    * @returns {string|null} Code string or null.
    */
-
   function extractViaHiddenTextarea() {
     // 1. Textareas inside editor
     for (const sel of SELECTORS.TEXTAREA) {
@@ -282,7 +280,6 @@
     }
 
     if (lineEls.length === 0) return null;
-
     // Sort elements by their top offset style or DOM position
     lineEls.sort((a, b) => {
       const topA = parseFloat(a.style.top || "0");
@@ -387,7 +384,6 @@
       } catch (err) {
         Logger.warn("SolutionParser: Tier 2 REACT_STATE failed:", err.message);
       }
-
       // Tier 3: Hidden Textarea & LocalStorage
       try {
         const t3Start = performance.now();
@@ -462,14 +458,12 @@
             lineCount: 0,
             success: false,
             validationResult: "No view lines found in DOM",
-
             selectedStrategy: "NONE"
           });
         }
       } catch (err) {
         Logger.warn("SolutionParser: Tier 4 DOM_SORTED failed:", err.message);
       }
-
 
       const totalTime = Math.round(performance.now() - startTime);
       Logger.error(`SolutionParser: All 4 extraction tiers failed after ${totalTime}ms.`);
