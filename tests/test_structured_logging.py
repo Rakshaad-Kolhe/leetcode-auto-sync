@@ -9,9 +9,9 @@ SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
 if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
-from app_logging.events import SyncEvent
-from app_logging.formatter import HumanFormatter, JSONFormatter
-from app_logging.logger import configure_logging, log_event
+from telemetry_logging.events import SyncEvent
+from telemetry_logging.formatter import HumanFormatter, JSONFormatter
+from telemetry_logging.logger import configure_logging, log_event
 
 
 def test_sync_event_enum_values():
