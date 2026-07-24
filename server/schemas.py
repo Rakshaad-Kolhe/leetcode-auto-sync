@@ -24,11 +24,20 @@ class Submission(BaseModel):
     code: str = Field(..., min_length=1, description="Solution code, non-empty")
     trace_id: str | None = Field(None, description="End-to-end trace identifier")
 
-    @field_validator("title", "slug", "language", "code")
+
+    @field_validator("title", "slug", "language")
     @classmethod
     def not_blank(cls, v: str) -> str:
-        """Strip whitespace and ensure strings are not empty after trimming."""
+        """Strip whitespace and ensure metadata strings are not empty after trimming."""
         v2 = v.strip()
         if not v2:
             raise ValueError("must not be empty")
         return v2
+
+    @field_validator("code")
+    @classmethod
+    def validate_code_not_blank(cls, v: str) -> str:
+        """Ensure code is non-empty without mutating whitespace."""
+        if not v or not v.strip():
+            raise ValueError("must not be empty")
+        return v

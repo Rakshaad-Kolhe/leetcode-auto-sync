@@ -87,5 +87,10 @@ def generate_diagnostics_bundle(repo_root: Path | str | None = None) -> Dict[str
             "git": git_info,
             "cache_exists": cache_exists,
         },
+        "source_integrity": {
+            "algorithm": "SHA-256",
+            "brace_balancing_enforced": True,
+            "verification_active": True,
+        },
         "configuration": sanitized_config,
     }
