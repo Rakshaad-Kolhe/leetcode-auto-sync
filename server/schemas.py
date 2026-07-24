@@ -23,7 +23,9 @@ class Submission(BaseModel):
     language: str = Field(..., min_length=1, description="Programming language, non-empty")
     code: str = Field(..., min_length=1, description="Solution code, non-empty")
     trace_id: str | None = Field(None, description="End-to-end trace identifier")
-
+    source_hash: str | None = Field(None, description="Optional SHA-256 hex checksum of original source code")
+    line_count: int | None = Field(None, description="Optional line count of solution code")
+    char_count: int | None = Field(None, description="Optional character count of solution code")
 
     @field_validator("title", "slug", "language")
     @classmethod
