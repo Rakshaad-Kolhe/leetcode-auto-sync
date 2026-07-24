@@ -10,10 +10,9 @@ readme = "README.md"
 authors = [
     { name = "Rakshaad Kolhe", email = "rakshaadkolhe@gmail.com" }
 ]
-license = { text = "MIT" }
+license = "MIT"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 requires-python = ">=3.10"
@@ -28,3 +27,8 @@ dependencies = [
 
 [project.scripts]
 leetcode-auto-sync = "server.app:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["server*"]
+exclude = ["tests*", "extension*", "benchmarks*", "scripts*", "dist*"]
