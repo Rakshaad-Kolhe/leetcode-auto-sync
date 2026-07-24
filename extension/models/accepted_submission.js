@@ -18,6 +18,7 @@
      * @param {string} [params.traceId] - Unique UUID v4 trace identifier.
      */
     constructor({ metadata, code, extractedAt, traceId, sourceHash, lineCount, charCount }) {
+
       this.metadata = metadata;
       this.code = code;
       this.extractedAt = extractedAt || new Date().toISOString();

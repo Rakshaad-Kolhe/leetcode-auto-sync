@@ -442,6 +442,7 @@ class GitService:
             "warnings": warnings,
             "user_email": identity["email"],
             "user_name": identity["name"],
+
         }
 
     def _verify_remote(self) -> None:

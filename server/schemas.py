@@ -27,6 +27,7 @@ class Submission(BaseModel):
     line_count: int | None = Field(None, description="Line count of solution code")
     char_count: int | None = Field(None, description="Character count of solution code")
 
+
     @field_validator("title", "slug", "language")
     @classmethod
     def not_blank(cls, v: str) -> str:
