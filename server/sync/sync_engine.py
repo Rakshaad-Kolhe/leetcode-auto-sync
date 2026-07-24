@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
 from pathlib import Path
@@ -11,6 +12,7 @@ from config import LEETCODE_REPO_PATH
 from config.config_manager import AppConfig, ConfigManager
 from config.folder_layout import get_folder_layout_strategy, sanitize_filename
 from documentation.generator import DocumentationGenerator
+from documentation.index_generator import regenerate_topic_pages
 from documentation.models import ProblemMetadata
 from documentation.statistics import generate_statistics, scan_repository
 from git_service import GitService, GitServiceError
@@ -19,7 +21,6 @@ from metrics import MetricsCollector
 from repository_writer import _atomic_write, _current_timestamp, _leetcode_url, _read_existing_timestamp, validate_repository
 from schemas import Submission
 
-import hashlib
 from .change_detector import ChangeDetector
 from .commit_planner import CommitPlanner
 from .file_diff import FileDiff
@@ -30,7 +31,33 @@ from .snapshot import TransactionSnapshot
 class SourceIntegrityError(ValueError):
     """Raised when source integrity or SHA-256 hash validation fails."""
 
+
 logger = logging.getLogger(__name__)
+
+
+def _get_extension(language: str) -> str:
+    """Map programming language to appropriate file extension."""
+    mapping = {
+        "cpp": ".cpp",
+        "c++": ".cpp",
+        "java": ".java",
+        "python": ".py",
+        "python3": ".py",
+        "javascript": ".js",
+        "typescript": ".ts",
+        "csharp": ".cs",
+        "c#": ".cs",
+        "golang": ".go",
+        "go": ".go",
+        "rust": ".rs",
+        "swift": ".swift",
+        "kotlin": ".kt",
+        "ruby": ".rb",
+        "c": ".c",
+        "scala": ".scala",
+        "php": ".php",
+    }
+    return mapping.get(language.lower(), ".txt")
 
 
 class SyncEngine:
@@ -79,12 +106,15 @@ class SyncEngine:
             },
         )
 
-        # Phase 3 & 4: Source Integrity & SHA-256 Hash Verification
-        computed_hash = hashlib.sha256(submission.code.encode("utf-8")).hexdigest()
-        if submission.source_hash and submission.source_hash.lower() != computed_hash.lower():
-            raise SourceIntegrityError(
-                f"Source integrity SHA-256 verification failed! Expected payload hash '{submission.source_hash}', computed '{computed_hash}'."
-            )
+        # Phase 3: Defensive Conditional Source Integrity & SHA-256 Hash Verification
+        source_hash = getattr(submission, "source_hash", None)
+        computed_hash = None
+        if source_hash:
+            computed_hash = hashlib.sha256(submission.code.encode("utf-8")).hexdigest()
+            if source_hash.lower() != computed_hash.lower():
+                raise SourceIntegrityError(
+                    f"Source integrity SHA-256 verification failed! Expected payload hash '{source_hash}', computed '{computed_hash}'."
+                )
 
         try:
             state = self.get_state()
@@ -209,13 +239,14 @@ class SyncEngine:
                 self.change_detector.record_change(solution_path, submission.code)
                 changed_files.append((relative_folder / solution_path.name).as_posix())
 
-                # Post-write filesystem SHA-256 source integrity check
-                written_code = solution_path.read_text(encoding="utf-8")
-                written_hash = hashlib.sha256(written_code.encode("utf-8")).hexdigest()
-                if written_hash.lower() != computed_hash.lower():
-                    raise SourceIntegrityError(
-                        f"Filesystem source integrity SHA-256 mismatch! Expected '{computed_hash}', written '{written_hash}'."
-                    )
+                # Post-write filesystem SHA-256 source integrity check if source_hash present
+                if source_hash and computed_hash:
+                    written_code = solution_path.read_text(encoding="utf-8")
+                    written_hash = hashlib.sha256(written_code.encode("utf-8")).hexdigest()
+                    if written_hash.lower() != computed_hash.lower():
+                        raise SourceIntegrityError(
+                            f"Filesystem source integrity SHA-256 mismatch! Expected '{computed_hash}', written '{written_hash}'."
+                        )
 
             if readme_changed and problem_readme is not None:
                 snapshot.record_file(readme_path)
@@ -233,76 +264,65 @@ class SyncEngine:
             all_problems = scan_repository(self.repo_root)
             statistics = generate_statistics(all_problems)
 
-            dashboard_changed = False
             if self.config.repository.auto_generate_dashboard:
+                t_dash_start = time.perf_counter()
+                root_readme_content = generator.generate_repository_readme(all_problems, statistics)
                 root_readme_path = self.repo_root / "README.md"
-                new_root_readme = generator.generate_repository_readme(all_problems, statistics)
-                if self.change_detector.detect_file_change(root_readme_path, new_root_readme):
+                if self.change_detector.detect_file_change(root_readme_path, root_readme_content):
                     snapshot.record_file(root_readme_path)
-                    _atomic_write(root_readme_path, new_root_readme)
-                    self.change_detector.record_change(root_readme_path, new_root_readme)
+                    _atomic_write(root_readme_path, root_readme_content)
+                    self.change_detector.record_change(root_readme_path, root_readme_content)
                     changed_files.append("README.md")
-                    dashboard_changed = True
+                    logger.info("[EVENT:ROOT_README_UPDATED]", extra={"event": "ROOT_README_UPDATED"})
 
-            topics_updated_count = 0
-            if self.config.repository.auto_generate_topics and metadata.topics:
-                affected_topics = metadata.topics
-                topics_dir = self.repo_root / "Topics"
-                topics_dir.mkdir(parents=True, exist_ok=True)
+            if self.config.repository.auto_generate_topics:
+                t_topic_start = time.perf_counter()
+                topic_paths = regenerate_topic_pages(self.repo_root, all_problems, generator)
+                for tp in topic_paths:
+                    try:
+                        rel = tp.relative_to(self.repo_root).as_posix()
+                        if rel not in changed_files:
+                            changed_files.append(rel)
+                    except ValueError:
+                        pass
 
-                topics_map: Dict[str, List[ProblemMetadata]] = {}
-                for prob in all_problems:
-                    for top in prob.topics:
-                        topics_map.setdefault(top, []).append(prob)
+            git_result: Dict[str, Any] = {"status": "no_changes", "committed": False, "pushed": False}
 
-                for topic_name in affected_topics:
-                    topic_probs = topics_map.get(topic_name, [])
-                    if topic_probs:
-                        topic_content = generator.generate_topic_page(topic_name, topic_probs)
-                        topic_file = topics_dir / f"{topic_name}.md"
-                        if self.change_detector.detect_file_change(topic_file, topic_content):
-                            snapshot.record_file(topic_file)
-                            _atomic_write(topic_file, topic_content)
-                            self.change_detector.record_change(topic_file, topic_content)
-                            rel_topic = (Path("Topics") / f"{topic_name}.md").as_posix()
-                            if rel_topic not in changed_files:
-                                changed_files.append(rel_topic)
-                            topics_updated_count += 1
-                            logger.info(
-                                "[EVENT:TOPIC_UPDATED]",
-                                extra={"event": "TOPIC_UPDATED", "topic": topic_name},
-                            )
+            if not changed_files and not self.git_service.get_status().get("clean", True):
+                git_result["status"] = "staged_only"
 
-            # 6. Plan commit and execute Git operations
-            git_result: Dict[str, Any] = {"status": "no_changes"}
-            branch = "main"
-
-            try:
-                branch_info = self.git_service.get_current_branch()
-                branch = branch_info["branch"]
-            except GitServiceError as exc:
-                logger.error(f"[SYNC] Git branch error: {exc}")
-                self.metrics.record_sync_complete(start_time, success=False)
+            if not changed_files:
+                self.metrics.record_sync_complete(start_time, success=True)
                 rel_out = (relative_folder / solution_path.name).as_posix()
                 rel_read = (relative_folder / readme_path.name).as_posix()
+                logger.info(
+                    "[EVENT:SYNC_COMPLETED]",
+                    extra={
+                        "event": "SYNC_COMPLETED",
+                        "problem_number": submission.id,
+                        "status": "no_changes",
+                        "duration_ms": round((time.perf_counter() - start_time) * 1000, 2),
+                    },
+                )
                 return {
-                    "status": "created" if is_new_problem else "updated",
+                    "status": "no_changes",
                     "problem": {"id": submission.id, "title": submission.title},
                     "output_file": rel_out,
                     "readme_file": rel_read,
                     "repository_path": str(self.repo_root),
                     "solution_path": str(solution_path),
                     "readme_path": str(readme_path),
-                    "changed": bool(changed_files),
-                    "changed_files": changed_files,
-                    "git": {"status": "error", "error": exc.to_dict()},
+                    "changed": False,
+                    "changed_files": [],
+                    "git": git_result,
                 }
 
             commit_plan = self.commit_planner.plan(submission, changed_files, is_new_problem=is_new_problem)
-            git_result["branch"] = branch
 
             if commit_plan.should_commit:
                 try:
+                    branch = self.git_service.get_current_branch().get("branch", "main")
+                    git_result["branch"] = branch
                     t_stage = time.perf_counter()
                     staged = self.git_service.stage_changes()
                     self.metrics.record_git_stage_duration((time.perf_counter() - t_stage) * 1000)
@@ -329,73 +349,52 @@ class SyncEngine:
 
                     git_result = {
                         "status": "committed",
-                        "branch": branch,
-                        "commit": commit_hash,
+                        "committed": True,
                         "pushed": pushed,
-                        "files": staged.get("files", []),
+                        "commit": commit_hash,
+                        "branch": branch,
                     }
                 except GitServiceError as exc:
-                    logger.error(f"[SYNC] Git error during commit: {exc}")
-                    git_result = {"status": "error", "branch": branch, "error": exc.to_dict()}
-            elif changed_files:
-                try:
-                    staged = self.git_service.stage_changes()
-                    git_result = {"status": "staged_only", "branch": branch, "files": staged.get("files", [])}
-                except GitServiceError as exc:
-                    git_result = {"status": "error", "branch": branch, "error": exc.to_dict()}
+                    git_result = {"status": "error", "error": exc.to_dict()}
+                    logger.error(f"[SYNC] Git error during commit: {exc.message}")
+            else:
+                git_result["status"] = "staged_only"
 
+            rel_solution = (relative_folder / solution_path.name).as_posix()
+            rel_readme = (relative_folder / readme_path.name).as_posix()
+            sync_duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
             self.metrics.record_sync_complete(start_time, success=True)
-            duration_total = round((time.perf_counter() - start_time) * 1000, 2)
-
             logger.info(
                 "[EVENT:SYNC_COMPLETED]",
                 extra={
                     "event": "SYNC_COMPLETED",
                     "problem_number": submission.id,
-                    "status": "created" if is_new_problem else ("updated" if changed_files else "no_changes"),
-                    "duration_ms": duration_total,
+                    "status": "created" if is_new_problem else "updated",
+                    "duration_ms": sync_duration_ms,
                 },
             )
 
-            rel_output = (relative_folder / solution_path.name).as_posix()
-            rel_readme = (relative_folder / readme_path.name).as_posix()
-
             return {
-                "status": "created" if is_new_problem else ("updated" if changed_files else "no_changes"),
+                "status": "created" if is_new_problem else "updated",
                 "problem": {"id": submission.id, "title": submission.title},
-                "output_file": rel_output,
+                "output_file": rel_solution,
                 "readme_file": rel_readme,
                 "repository_path": str(self.repo_root),
                 "solution_path": str(solution_path),
                 "readme_path": str(readme_path),
-                "changed": bool(changed_files),
+                "changed": True,
                 "changed_files": changed_files,
                 "git": git_result,
             }
-
         except Exception as exc:
-            self.metrics.record_sync_complete(start_time, success=False)
             snapshot.rollback()
+            self.metrics.record_sync_complete(start_time, success=False)
             logger.error(
                 "[EVENT:SYNC_FAILED]",
                 extra={
                     "event": "SYNC_FAILED",
                     "problem_number": submission.id,
                     "error": str(exc),
-                    "duration_ms": round((time.perf_counter() - start_time) * 1000, 2),
                 },
             )
-            raise exc
-
-
-def _get_extension(language: str) -> str:
-    lang = language.strip().lower()
-    ext_map = {
-        "c++": ".cpp", "cpp": ".cpp", "python3": ".py", "python": ".py",
-        "java": ".java", "javascript": ".js", "js": ".js", "typescript": ".ts",
-        "ts": ".ts", "go": ".go", "golang": ".go", "rust": ".rs", "c": ".c",
-        "csharp": ".cs", "c#": ".cs", "kotlin": ".kt", "swift": ".swift",
-        "ruby": ".rb", "php": ".php", "dart": ".dart", "scala": ".scala",
-        "racket": ".rkt", "erlang": ".erl", "elixir": ".ex", "sql": ".sql",
-    }
-    return ext_map.get(lang, ".txt")
+            raise

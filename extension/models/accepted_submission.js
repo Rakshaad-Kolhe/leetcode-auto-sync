@@ -16,8 +16,11 @@
      * @param {string} params.code - The full source code content.
      * @param {string} [params.extractedAt] - ISO-8601 timestamp.
      * @param {string} [params.traceId] - Unique UUID v4 trace identifier.
+     * @param {string} [params.sourceHash] - SHA-256 hex checksum.
+     * @param {number} [params.lineCount] - Solution line count.
+     * @param {number} [params.charCount] - Solution character count.
      */
-    constructor({ metadata, code, extractedAt, traceId }) {
+    constructor({ metadata, code, extractedAt, traceId, sourceHash, lineCount, charCount }) {
 
       this.metadata = metadata;
       this.code = code;
@@ -27,6 +30,10 @@
           ? crypto.randomUUID()
           : `tr_${Math.random().toString(36).substring(2, 11)}`
       );
+      this.sourceHash = sourceHash || null;
+      this.lineCount = lineCount !== undefined ? lineCount : (typeof code === "string" ? code.split(/\r\n|\r|\n/).length : null);
+      this.charCount = charCount !== undefined ? charCount : (typeof code === "string" ? code.length : null);
+
     }
 
     /**
