@@ -12,6 +12,7 @@ from config import LEETCODE_REPO_PATH
 from config.config_manager import AppConfig, ConfigManager
 from config.folder_layout import get_folder_layout_strategy, sanitize_filename
 from documentation.generator import DocumentationGenerator
+from documentation.index_generator import regenerate_topic_pages
 from documentation.models import ProblemMetadata
 from documentation.statistics import generate_statistics, scan_repository
 from git_service import GitService, GitServiceError
@@ -265,7 +266,7 @@ class SyncEngine:
 
             if self.config.repository.auto_generate_dashboard:
                 t_dash_start = time.perf_counter()
-                root_readme_content = generator.generate_root_readme(all_problems, statistics)
+                root_readme_content = generator.generate_repository_readme(all_problems, statistics)
                 root_readme_path = self.repo_root / "README.md"
                 if self.change_detector.detect_file_change(root_readme_path, root_readme_content):
                     snapshot.record_file(root_readme_path)
@@ -273,23 +274,18 @@ class SyncEngine:
                     self.change_detector.record_change(root_readme_path, root_readme_content)
                     changed_files.append("README.md")
                     logger.info("[EVENT:ROOT_README_UPDATED]", extra={"event": "ROOT_README_UPDATED"})
-                self.metrics.record_dashboard_duration((time.perf_counter() - t_dash_start) * 1000)
 
             if self.config.repository.auto_generate_topics:
                 t_topic_start = time.perf_counter()
-                topic_pages = generator.generate_topic_pages(all_problems)
-                for rel_topic_path, topic_content in topic_pages.items():
-                    full_topic_path = self.repo_root / rel_topic_path
-                    if self.change_detector.detect_file_change(full_topic_path, topic_content):
-                        snapshot.record_file(full_topic_path)
-                        _atomic_write(full_topic_path, topic_content)
-                        self.change_detector.record_change(full_topic_path, topic_content)
-                        changed_files.append(rel_topic_path.as_posix())
-                        logger.info("[EVENT:TOPIC_PAGE_UPDATED]", extra={"event": "TOPIC_PAGE_UPDATED", "topic_path": rel_topic_path.as_posix()})
-                self.metrics.record_topic_duration((time.perf_counter() - t_topic_start) * 1000)
+                topic_paths = regenerate_topic_pages(self.repo_root, all_problems, generator)
+                for tp in topic_paths:
+                    try:
+                        rel = tp.relative_to(self.repo_root).as_posix()
+                        if rel not in changed_files:
+                            changed_files.append(rel)
+                    except ValueError:
+                        pass
 
-            # 6. Execute planned Git Operations (Stage -> Commit -> Push)
-            branch = self.git_service.get_current_branch().get("branch", "main")
             git_result: Dict[str, Any] = {"status": "no_changes", "committed": False, "pushed": False}
 
             if not changed_files and not self.git_service.get_status().get("clean", True):
@@ -322,10 +318,11 @@ class SyncEngine:
                 }
 
             commit_plan = self.commit_planner.plan(submission, changed_files, is_new_problem=is_new_problem)
-            git_result["branch"] = branch
 
             if commit_plan.should_commit:
                 try:
+                    branch = self.git_service.get_current_branch().get("branch", "main")
+                    git_result["branch"] = branch
                     t_stage = time.perf_counter()
                     staged = self.git_service.stage_changes()
                     self.metrics.record_git_stage_duration((time.perf_counter() - t_stage) * 1000)
