@@ -52,7 +52,7 @@ class CommitPlanner:
                 is_new_problem=is_new_problem,
             )
 
-        # Generate commit message
+        # Generate commit message with trace_id
         message = generate_problem_commit_message(
             submission.id,
             submission.title,
@@ -60,6 +60,7 @@ class CommitPlanner:
             template=self.git_service.commit_message_template,
             difficulty=submission.difficulty,
             language=submission.language,
+            trace_id=getattr(submission, "trace_id", None),
         )
 
         should_commit = self.git_service.auto_commit

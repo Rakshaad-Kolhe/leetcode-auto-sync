@@ -1,6 +1,6 @@
 /**
  * @fileoverview Data model representing the complete accepted solution (metadata + source code).
- * Includes schema definition and validation methods.
+ * Includes trace ID generation and validation methods.
  */
 
 ((global) => {
@@ -15,11 +15,17 @@
      * @param {Object} params.metadata - The SubmissionModel metadata.
      * @param {string} params.code - The full source code content.
      * @param {string} [params.extractedAt] - ISO-8601 timestamp.
+     * @param {string} [params.traceId] - Unique UUID v4 trace identifier.
      */
-    constructor({ metadata, code, extractedAt }) {
+    constructor({ metadata, code, extractedAt, traceId }) {
       this.metadata = metadata;
       this.code = code;
       this.extractedAt = extractedAt || new Date().toISOString();
+      this.traceId = traceId || (
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `tr_${Math.random().toString(36).substring(2, 11)}`
+      );
     }
 
     /**
@@ -39,6 +45,11 @@
 
       // 3. Extraction timestamp must be a non-empty string
       if (typeof this.extractedAt !== "string" || !this.extractedAt.trim()) {
+        return false;
+      }
+
+      // 4. Trace ID must be a non-empty string
+      if (typeof this.traceId !== "string" || !this.traceId.trim()) {
         return false;
       }
 
