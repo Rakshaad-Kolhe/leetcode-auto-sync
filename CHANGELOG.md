@@ -1,21 +1,32 @@
-# Changelog
+# Changelog 📜
 
-All notable changes to this project will be documented in this file.
+All notable changes to **LeetCode Auto Sync** are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-07-16
+---
 
-This is the first stable release of LeetCode Auto Sync, delivering robust local synchronization of solved LeetCode problems to your repository.
+## [1.0.1] - 2026-07-24
 
 ### Added
-- **Core foundation**: Manifest V3 extension structure and FastAPI backend service.
-- **Page Context Detection**: Observer and classifier for active LeetCode URLs, identifying problem, contest, profile, and exploration routes.
-- **Submission Lifecycle Detection**: DOM scanners, hotkey triggers, and MutationObservers to track judging cycles (`IDLE` -> `SUBMITTING` -> `RUNNING` -> `FINISHED`).
-- **Metadata Extraction**: Scraper to capture problem ID, title, slug, difficulty, and programming language.
-- **Solution Extraction**: Hybrid solution parsing connecting Monaco Editor main-world memory models with DOM scraping fallback lines.
-- **Backend Sync Pipeline**: Automatic `POST` dispatch of accepted solutions to the local backend, checking connection health.
-- **Diagnostics Dashboard**: Diagnostics panel inside the popup to check versions, targeted URL configurations, client user-agents, sync errors, and connection health status.
-- **Configuration Persistence**: Save and reload settings using `chrome.storage.local`.
-- **Community Templates**: Added PR templates, issue templates, CONTRIBUTING rules, and MIT LICENSE.
+- **Modular Structured Logging**: `server/logging/` package with JSON and human-readable formatters emitting structured telemetry events (`SYNC_STARTED`, `METADATA_FETCHED`, `FILES_UPDATED`, `GIT_COMMIT_CREATED`, `GIT_PUSH_COMPLETED`).
+- **Runtime Performance Telemetry**: `server/metrics/` package with `GET /metrics` returning sync count, average duration, cache hit ratio, and Git/GraphQL breakdown.
+- **Benchmark Suite**: `benchmarks/benchmark_sync.py` measuring 100, 500, and 1000 submission runs.
+- **Release Automation**: `scripts/release.py` verifying versions, package checksums, and release notes.
+
+### Fixed
+- Included `httpx>=0.27.0` in `server/requirements.txt` to fix GitHub Actions CI test client failure.
+- Updated Pydantic `@validator` to `@field_validator` in `server/schemas.py`.
+
+---
+
+## [1.0.0] - 2026-07-23
+
+### Added
+- Initial public release candidate of LeetCode Auto Sync.
+- Intelligent, idempotent synchronization engine with SHA-256 change detection.
+- GraphQL metadata enrichment with topic tags, company tags, and similarity recommendations.
+- Custom README templates (`classic`, `detailed`, `minimal`) and layout strategies.
+- Health dashboard (`GET /status`) and support bundle generator (`GET /diagnostics`).
+- Cross-platform installation scripts for Windows, Linux, and macOS.

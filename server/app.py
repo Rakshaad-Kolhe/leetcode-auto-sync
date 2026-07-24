@@ -26,7 +26,7 @@ from schemas import Submission
 from submit_service import process_submission
 
 SERVICE_NAME = "leetcode-auto-sync"
-SERVICE_VERSION = "1.0.0"
+SERVICE_VERSION = "1.0.1"
 
 
 class JsonFormatter(logging.Formatter):
@@ -159,6 +159,15 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "version": SERVICE_VERSION}
 
 
+from metrics import MetricsCollector
+
+
+@app.get("/metrics")
+async def get_metrics() -> dict[str, Any]:
+    """Return runtime performance metrics and telemetry counters."""
+    return MetricsCollector.get_instance().get_summary()
+
+
 @app.get("/status")
 async def get_status() -> dict[str, Any]:
     """Return detailed health dashboard status for backend, Git, GraphQL, and repository."""
@@ -181,6 +190,9 @@ async def get_status() -> dict[str, Any]:
         graphql_status = "unavailable"
 
     cache_status = "active" if (repo_path / ".cache").exists() else "ready"
+    metrics_summary = MetricsCollector.get_instance().get_summary()
+
+    doc_count = len(list(repo_path.rglob("*.md"))) if repo_path.exists() else 0
 
     return {
         "server": "healthy",
@@ -189,6 +201,11 @@ async def get_status() -> dict[str, Any]:
         "graphql": graphql_status,
         "cache": cache_status,
         "version": SERVICE_VERSION,
+        "metrics": metrics_summary,
+        "avg_sync_duration_ms": metrics_summary["avg_sync_duration_ms"],
+        "cache_hit_ratio": metrics_summary["cache_hit_ratio"],
+        "generated_documentation_count": doc_count,
+        "last_sync_timestamp": metrics_summary["last_sync_timestamp"],
     }
 
 

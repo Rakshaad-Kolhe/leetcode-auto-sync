@@ -4,6 +4,7 @@ from .change_detector import ChangeDetector
 from .commit_planner import CommitPlan, CommitPlanner
 from .file_diff import FileDiff, compute_sha256, normalize_content
 from .repository_state import RepositoryState, build_repository_state
+from .snapshot import TransactionSnapshot
 from .sync_engine import SyncEngine
 
 __all__ = [
@@ -13,6 +14,7 @@ __all__ = [
     "FileDiff",
     "RepositoryState",
     "SyncEngine",
+    "TransactionSnapshot",
     "build_repository_state",
     "compute_sha256",
     "normalize_content",

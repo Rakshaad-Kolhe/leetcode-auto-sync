@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "leetcode-auto-sync"
-version = "1.0.0"
+version = "1.0.1"
 description = "Automated, intelligent LeetCode submission synchronization and documentation engine"
 readme = "README.md"
 authors = [

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, validator
+try:
+    from pydantic import BaseModel, Field, field_validator
+except ImportError:  # Fallback for Pydantic v1
+    from pydantic import BaseModel, Field, validator as field_validator  # type: ignore[assignment]
 
 
 class Submission(BaseModel):
@@ -20,10 +23,10 @@ class Submission(BaseModel):
     language: str = Field(..., min_length=1, description="Programming language, non-empty")
     code: str = Field(..., min_length=1, description="Solution code, non-empty")
 
-    @validator("title", "slug", "language", "code")
-    def not_blank(cls, v: str) -> str:  # pragma: no cover - trivial
+    @field_validator("title", "slug", "language", "code")
+    @classmethod
+    def not_blank(cls, v: str) -> str:
         """Strip whitespace and ensure strings are not empty after trimming."""
-
         v2 = v.strip()
         if not v2:
             raise ValueError("must not be empty")

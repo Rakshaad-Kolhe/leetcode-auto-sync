@@ -14,7 +14,7 @@ from git_service import GitService
 
 logger = logging.getLogger(__name__)
 
-SERVICE_VERSION = "1.0.0"
+SERVICE_VERSION = "1.0.1"
 
 
 def sanitize_config(data: Any) -> Any:

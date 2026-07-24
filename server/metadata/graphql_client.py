@@ -38,6 +38,9 @@ query getQuestionDetail($titleSlug: String!) {
 """
 
 
+from retry import retry_with_backoff
+
+
 class LeetCodeGraphQLClient:
     """Client for fetching problem details from LeetCode's public GraphQL API."""
 
@@ -126,6 +129,7 @@ class LeetCodeGraphQLClient:
             raw=question,
         )
 
+    @retry_with_backoff(max_retries=3, initial_delay=0.1)
     def _execute_query(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Send HTTP POST request to GraphQL endpoint."""
 

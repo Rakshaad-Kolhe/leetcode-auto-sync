@@ -1,6 +1,6 @@
 {
   "name": "leetcode-auto-sync-extension",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Chrome Extension for LeetCode Auto Sync",
   "main": "extension/background/service_worker.js",
   "scripts": {
