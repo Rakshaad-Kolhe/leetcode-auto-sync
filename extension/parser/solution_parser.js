@@ -105,6 +105,7 @@
    * Searches ALL models returned by window.monaco.editor.getModels() to pick the complete solution.
    * @returns {Promise<{ code: string|null, modelCount: number, selectedModelUri: string }>} Result object.
    */
+
   function extractViaMonacoAPI() {
     return new Promise((resolve) => {
       const eventName = `LEETCODE_MONACO_EXTRACT_` + Math.random().toString(36).substring(2, 9).toUpperCase();
@@ -443,6 +444,7 @@
             success: valRes.valid,
             validationResult: valRes.reason,
             selectedStrategy: valRes.valid ? "DOM_SORTED" : "NONE"
+
           };
           extractionDiagnostics.push(diag);
 
@@ -460,13 +462,14 @@
             lineCount: 0,
             success: false,
             validationResult: "No view lines found in DOM",
+
             selectedStrategy: "NONE"
           });
         }
       } catch (err) {
         Logger.warn("SolutionParser: Tier 4 DOM_SORTED failed:", err.message);
       }
-
+      
       const totalTime = Math.round(performance.now() - startTime);
       Logger.error(`SolutionParser: All 4 extraction tiers failed after ${totalTime}ms.`);
       throw new Error(`Failed to extract solution: all 4 extraction tiers failed or failed validation`);
