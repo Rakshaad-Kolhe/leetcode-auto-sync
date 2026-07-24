@@ -50,11 +50,15 @@ def generate_diagnostics_bundle(repo_root: Path | str | None = None) -> Dict[str
         repo_valid = git_srv.verify_repository().get("valid", False)
         branch = git_srv.get_current_branch().get("branch", "unknown")
         status = git_srv.get_status()
+        git_identity = git_srv.verify_git_identity()
+        contribution_eligibility = git_srv.check_contribution_eligibility()
         git_info = {
             "valid": repo_valid,
             "branch": branch,
             "clean": status.get("clean", False),
             "untracked_count": len(status.get("files", [])),
+            "identity": git_identity,
+            "contribution_eligibility": contribution_eligibility,
         }
     except Exception as exc:
         git_info = {"status": "error", "error": str(exc)}

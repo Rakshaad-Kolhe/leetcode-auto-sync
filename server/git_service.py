@@ -247,6 +247,55 @@ class GitService:
             "auto_push": self.auto_push,
         }
 
+    def verify_git_identity(self) -> Dict[str, Any]:
+        """Verify git user.name and user.email configuration for identity attribution."""
+        self._ensure_git_installed()
+        try:
+            name = self._run(["config", "user.name"]).stdout.strip()
+        except GitServiceError:
+            name = ""
+
+        try:
+            email = self._run(["config", "user.email"]).stdout.strip()
+        except GitServiceError:
+            email = ""
+
+        is_valid = bool(name and email and "@" in email and not email.endswith("@example.com"))
+        return {
+            "valid": is_valid,
+            "name": name,
+            "email": email,
+            "reasons": [] if is_valid else ["Missing or invalid git user.name / user.email config"]
+        }
+
+    def check_contribution_eligibility(self) -> Dict[str, Any]:
+        """Verify GitHub contribution graph attribution requirements."""
+        identity = self.verify_git_identity()
+        reasons = []
+
+        if not identity["valid"]:
+            reasons.append("Git user identity (user.name / user.email) is unconfigured or invalid")
+
+        try:
+            branch_info = self.get_current_branch()
+            if not branch_info["is_default"]:
+                reasons.append(f"Current branch '{branch_info['branch']}' is not default branch '{self.default_branch}'")
+        except GitServiceError as e:
+            reasons.append(str(e))
+
+        try:
+            self._verify_remote()
+        except GitServiceError as e:
+            reasons.append(str(e))
+
+        is_eligible = len(reasons) == 0
+        return {
+            "eligible": is_eligible,
+            "reasons": reasons,
+            "user_email": identity["email"],
+            "user_name": identity["name"]
+        }
+
     def _verify_remote(self) -> None:
         try:
             self._run(["remote", "get-url", self.remote_name])

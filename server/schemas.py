@@ -22,6 +22,7 @@ class Submission(BaseModel):
     difficulty: Literal["Easy", "Medium", "Hard"]
     language: str = Field(..., min_length=1, description="Programming language, non-empty")
     code: str = Field(..., min_length=1, description="Solution code, non-empty")
+    trace_id: str | None = Field(None, description="End-to-end trace identifier")
 
     @field_validator("title", "slug", "language", "code")
     @classmethod

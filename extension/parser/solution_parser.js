@@ -88,8 +88,12 @@
         return { valid: false, reason: "Code starts with closing brace (truncated middle snippet)" };
       }
 
-      if (openBraces > 0 && Math.abs(openBraces - closeBraces) > 10) {
-        return { valid: false, reason: `Severely unbalanced braces ({: ${openBraces}, }: ${closeBraces})` };
+      if (openBraces > 0 && closeBraces === 0) {
+        return { valid: false, reason: "Missing all closing braces (truncated bottom snippet)" };
+      }
+
+      if (openBraces > 0 && (openBraces - closeBraces) > 2) {
+        return { valid: false, reason: `Unbalanced closing braces ({: ${openBraces}, }: ${closeBraces})` };
       }
     }
 
