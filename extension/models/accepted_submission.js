@@ -21,6 +21,7 @@
      * @param {number} [params.charCount] - Solution character count.
      */
     constructor({ metadata, code, extractedAt, traceId, sourceHash, lineCount, charCount }) {
+
       this.metadata = metadata;
       this.code = code;
       this.extractedAt = extractedAt || new Date().toISOString();
@@ -32,6 +33,7 @@
       this.sourceHash = sourceHash || null;
       this.lineCount = lineCount !== undefined ? lineCount : (typeof code === "string" ? code.split(/\r\n|\r|\n/).length : null);
       this.charCount = charCount !== undefined ? charCount : (typeof code === "string" ? code.length : null);
+
     }
 
     /**
