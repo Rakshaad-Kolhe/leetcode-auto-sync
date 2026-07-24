@@ -18,7 +18,6 @@
 
   /** Diagnostic logs for extraction attempts */
   let extractionDiagnostics = [];
-
   /**
    * Validates code completeness and syntax integrity.
    * @param {string} code - The extracted code string.
@@ -226,6 +225,7 @@
    * Scrapes hidden textareas used by Monaco or CodeMirror.
    * @returns {string|null} Code string or null.
    */
+
   function extractViaHiddenTextarea() {
     // 1. Textareas inside editor
     for (const sel of SELECTORS.TEXTAREA) {
@@ -469,7 +469,8 @@
       } catch (err) {
         Logger.warn("SolutionParser: Tier 4 DOM_SORTED failed:", err.message);
       }
-      
+
+
       const totalTime = Math.round(performance.now() - startTime);
       Logger.error(`SolutionParser: All 4 extraction tiers failed after ${totalTime}ms.`);
       throw new Error(`Failed to extract solution: all 4 extraction tiers failed or failed validation`);

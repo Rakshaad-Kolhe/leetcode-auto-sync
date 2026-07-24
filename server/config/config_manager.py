@@ -45,6 +45,7 @@ class DocumentationConfig:
 class GitConfig:
     auto_commit: bool = True
     auto_push: bool = True
+    auto_rebase: bool = True
     commit_message: str = "Add {problem_number} - {problem_title}"
 
 
@@ -216,6 +217,7 @@ class ConfigManager:
         git = GitConfig(
             auto_commit=bool(git_raw.get("auto_commit", True)),
             auto_push=bool(git_raw.get("auto_push", True)),
+            auto_rebase=bool(git_raw.get("auto_rebase", True)),
             commit_message=str(git_raw.get("commit_message", "Add {problem_number} - {problem_title}")),
         )
 

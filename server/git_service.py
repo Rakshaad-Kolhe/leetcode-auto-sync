@@ -1,10 +1,11 @@
-"""Reusable Git service and synchronization pipeline."""
+"""Reusable Git service, branch divergence recovery, and push reliability engine."""
 
 from __future__ import annotations
 
 import logging
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -72,8 +73,32 @@ class MissingRemoteError(GitServiceError):
     code = "missing_remote"
 
 
+class RemoteAheadError(GitServiceError):
+    """Raised when remote branch has newer commits not present locally."""
+
+    code = "remote_ahead"
+
+
+class BranchDivergedError(GitServiceError):
+    """Raised when local and remote branches contain unique commits."""
+
+    code = "branch_diverged"
+
+
+class MergeConflictError(GitServiceError):
+    """Raised when automatic rebase encounters merge conflicts."""
+
+    code = "merge_conflict"
+
+
+class AuthenticationError(GitServiceError):
+    """Raised when Git authentication / credentials fail."""
+
+    code = "authentication_failed"
+
+
 class GitService:
-    """Run local Git commands with structured results and custom exceptions."""
+    """Run local Git commands with structured results, branch state analysis, and recovery."""
 
     def __init__(
         self,
@@ -81,6 +106,7 @@ class GitService:
         *,
         auto_commit: bool | None = None,
         auto_push: bool | None = None,
+        auto_rebase: bool | None = None,
         commit_message: str | None = None,
         remote_name: str = REMOTE_NAME,
         default_branch: str = DEFAULT_BRANCH,
@@ -100,6 +126,7 @@ class GitService:
 
         self.auto_commit = git_cfg.auto_commit if auto_commit is None else auto_commit
         self.auto_push = git_cfg.auto_push if auto_push is None else auto_push
+        self.auto_rebase = getattr(git_cfg, "auto_rebase", True) if auto_rebase is None else auto_rebase
         self.commit_message_template = git_cfg.commit_message if commit_message is None else commit_message
 
         self.remote_name = remote_name
@@ -114,23 +141,25 @@ class GitService:
         is_new_problem: bool,
         difficulty: str = "",
         language: str = "",
+        trace_id: str | None = None,
     ) -> Dict[str, Any]:
         """Synchronize repository changes for a problem submission."""
-        logger.info("git_sync_started", extra={"problem_id": problem_id})
+        logger.info("git_sync_started", extra={"problem_id": problem_id, "trace_id": trace_id})
         try:
             self.verify_repository()
-            branch = self.get_current_branch()["branch"]
+            branch_info = self.get_current_branch()
+            branch = branch_info["branch"]
+
             status = self.get_status()
 
-            if status["clean"]:
-                logger.info("git_sync_completed", extra={"status": "no_changes", "branch": branch})
+            staged_files: List[str] = []
+            if not status["clean"]:
+                staged = self.stage_changes()
+                staged_files = staged["files"]
+
+            if not staged_files and status["clean"]:
+                logger.info("git_sync_no_changes")
                 return {"status": "no_changes"}
-
-            staged = self.stage_changes()
-
-            if not self.auto_commit:
-                logger.info("git_sync_staged_only", extra={"branch": branch, "file_count": len(staged["files"])})
-                return {"status": "staged_only", "branch": branch, "pushed": False, "files": staged["files"]}
 
             message = generate_problem_commit_message(
                 problem_id,
@@ -139,43 +168,43 @@ class GitService:
                 template=self.commit_message_template,
                 difficulty=difficulty,
                 language=language,
+                trace_id=trace_id,
             )
+
             commit = self.commit_changes(message)
+            commit_hash = commit["commit"]
 
             pushed = False
             if self.auto_push:
                 self.push_changes(branch)
                 pushed = True
 
-            result = {"branch": branch, "commit": commit["commit"], "pushed": pushed, "status": "committed"}
-            logger.info(
-                "git_sync_completed",
-                extra={
-                    "status": "committed",
-                    "branch": branch,
-                    "commit": commit["commit"],
-                    "pushed": pushed,
-                    "file_count": len(staged["files"]),
-                },
-            )
-            return result
+            logger.info("git_sync_completed", extra={"commit": commit_hash, "pushed": pushed})
+            return {
+                "status": "success",
+                "branch": branch,
+                "commit": commit_hash,
+                "pushed": pushed,
+                "files": staged_files,
+            }
         except GitServiceError as exc:
-            logger.error("git_sync_failed", extra={"error_code": exc.code})
+            logger.error(f"git_sync_failed: {exc.message}")
             return {"status": "error", "error": exc.to_dict()}
 
     def verify_repository(self) -> Dict[str, Any]:
-        """Verify that repo_path points to a valid Git working tree."""
+        """Verify that the path is a valid Git repository."""
         self._ensure_git_installed()
-        if not self.repo_path.exists() or not (self.repo_path / ".git").exists():
-            raise InvalidRepositoryError(f"Configured repository path is not a valid git repository: {self.repo_path}")
+        if not self.repo_path.exists() or not self.repo_path.is_dir():
+            raise InvalidRepositoryError(f"Path does not exist or is not a directory: {self.repo_path}")
+
+        git_dir = self.repo_path / ".git"
+        if not git_dir.exists():
+            raise InvalidRepositoryError(f"Not a Git repository (missing .git directory): {self.repo_path}")
 
         try:
-            result = self._run(["rev-parse", "--is-inside-work-tree"])
+            self._run(["rev-parse", "--is-inside-work-tree"])
         except GitServiceError as exc:
-            raise InvalidRepositoryError(f"Configured repository path is not a valid git repository: {self.repo_path}") from exc
-
-        if result.stdout.strip() != "true":
-            raise InvalidRepositoryError(f"Configured repository path is not a valid git repository: {self.repo_path}")
+            raise InvalidRepositoryError(f"Invalid Git repository at: {self.repo_path}") from exc
 
         logger.info("git_repository_validated", extra={"repository_path": str(self.repo_path)})
         return {"valid": True, "repository": str(self.repo_path)}
@@ -227,23 +256,138 @@ class GitService:
         logger.info("git_commit_created", extra={"commit": commit_hash})
         return {"committed": True, "commit": commit_hash, "message": message}
 
+    def fetch_remote(self, remote: str | None = None) -> None:
+        """Fetch remote updates from configured remote."""
+        self._ensure_git_installed()
+        target_remote = remote or self.remote_name
+        self._verify_remote()
+
+        try:
+            self._run(["fetch", target_remote])
+        except GitServiceError as exc:
+            msg = str(exc.message).lower()
+            if "authentication failed" in msg or "could not read username" in msg or "denied" in msg:
+                raise AuthenticationError(f"Git authentication failed for remote '{target_remote}'.") from exc
+            raise PushFailedError(f"Git fetch failed for remote '{target_remote}': {exc.message}") from exc
+
+    def get_branch_status(self, remote: str | None = None, branch: str | None = None) -> Dict[str, Any]:
+        """Inspect branch status relative to remote branch (ahead/behind/diverged)."""
+        self._ensure_git_installed()
+        target_remote = remote or self.remote_name
+        target_branch = branch or self.get_current_branch()["branch"]
+
+        local_head = self._run(["rev-parse", "HEAD"]).stdout.strip()
+
+        # Try to resolve remote ref
+        remote_ref = f"{target_remote}/{target_branch}"
+        try:
+            remote_head = self._run(["rev-parse", remote_ref]).stdout.strip()
+        except GitServiceError:
+            return {
+                "local_head": local_head,
+                "remote_head": "none",
+                "ahead_count": 1,
+                "behind_count": 0,
+                "state": "MISSING_UPSTREAM",
+                "can_push": True,
+            }
+
+        ahead = int(self._run(["rev-list", "--count", f"{remote_ref}..HEAD"]).stdout.strip() or "0")
+        behind = int(self._run(["rev-list", "--count", f"HEAD..{remote_ref}"]).stdout.strip() or "0")
+
+        if ahead == 0 and behind == 0:
+            state = "CLEAN"
+        elif ahead > 0 and behind == 0:
+            state = "AHEAD_ONLY"
+        elif ahead == 0 and behind > 0:
+            state = "BEHIND_ONLY"
+        else:
+            state = "DIVERGED"
+
+        can_push = state in ("CLEAN", "AHEAD_ONLY", "MISSING_UPSTREAM")
+        return {
+            "local_head": local_head,
+            "remote_head": remote_head,
+            "ahead_count": ahead,
+            "behind_count": behind,
+            "state": state,
+            "can_push": can_push,
+        }
+
+    def rebase_from_upstream(self, remote: str | None = None, branch: str | None = None) -> None:
+        """Attempt safe rebase from remote branch, rolling back cleanly if conflicts occur."""
+        target_remote = remote or self.remote_name
+        target_branch = branch or self.get_current_branch()["branch"]
+
+        logger.info(f"[GIT] Attempting safe pull --rebase from '{target_remote}/{target_branch}'...")
+        try:
+            self._run(["pull", "--rebase", target_remote, target_branch])
+            logger.info("[GIT] Automatic rebase completed successfully.")
+        except GitServiceError as exc:
+            logger.warning(f"[GIT] Rebase encountered conflicts: {exc.message}. Rolling back via git rebase --abort...")
+            try:
+                self._run(["rebase", "--abort"])
+            except GitServiceError:
+                pass
+            raise MergeConflictError(
+                f"Automatic rebase failed with merge conflicts on '{target_branch}'. Safe rollback executed."
+            ) from exc
+
     @retry_with_backoff(max_retries=3, initial_delay=0.1, exceptions=(PushFailedError, GitServiceError))
     def push_changes(self, branch: str | None = None) -> Dict[str, Any]:
-        """Push the requested branch to the configured remote."""
+        """Push the requested branch to remote, with pre-push branch state analysis and post-push verification."""
         self._ensure_git_installed()
         target_branch = branch or self.get_current_branch()["branch"]
         self._verify_remote()
 
+        # Step 1: Fetch remote
+        self.fetch_remote()
+
+        # Step 2: Compare branch state
+        b_status = self.get_branch_status(branch=target_branch)
+
+        if not b_status["can_push"]:
+            if b_status["state"] == "BEHIND_ONLY":
+                if self.auto_rebase:
+                    self.rebase_from_upstream(branch=target_branch)
+                    b_status = self.get_branch_status(branch=target_branch)
+                else:
+                    raise RemoteAheadError(
+                        f"Remote branch '{target_branch}' is ahead by {b_status['behind_count']} commits. Pull/rebase required."
+                    )
+            elif b_status["state"] == "DIVERGED":
+                if self.auto_rebase:
+                    self.rebase_from_upstream(branch=target_branch)
+                    b_status = self.get_branch_status(branch=target_branch)
+                else:
+                    raise BranchDivergedError(
+                        f"Local and remote branch '{target_branch}' have diverged. Safe rebase required."
+                    )
+
+        # Step 3: Execute Push
         try:
             self._run(["push", self.remote_name, target_branch])
         except GitServiceError as exc:
-            raise PushFailedError(f"Git push to remote '{self.remote_name}' failed.") from exc
+            msg = str(exc.message).lower()
+            if "authentication failed" in msg or "denied" in msg:
+                raise AuthenticationError(f"Git authentication failed for push to remote '{self.remote_name}'.") from exc
+            raise PushFailedError(f"Git push to remote '{self.remote_name}' failed: {exc.message}") from exc
+
+        # Step 4: Post-Push Remote Verification (Confirm remote SHA matches local HEAD)
+        self.fetch_remote()
+        post_status = self.get_branch_status(branch=target_branch)
+        if post_status["ahead_count"] > 0:
+            raise PushFailedError(
+                f"Push verification failed: local branch is still {post_status['ahead_count']} commits ahead of remote after push."
+            )
 
         logger.info("git_push_completed", extra={"remote": self.remote_name, "branch": target_branch})
         return {
             "pushed": True,
             "remote": self.remote_name,
             "branch": target_branch,
+            "local_head": post_status["local_head"],
+            "remote_head": post_status["remote_head"],
             "auto_push": self.auto_push,
         }
 
@@ -265,7 +409,8 @@ class GitService:
             "valid": is_valid,
             "name": name,
             "email": email,
-            "reasons": [] if is_valid else ["Missing or invalid git user.name / user.email config"]
+            "reasons": [] if is_valid else ["Missing or invalid git user.name / user.email config"],
+
         }
 
     def check_contribution_eligibility(self) -> Dict[str, Any]:
@@ -297,7 +442,8 @@ class GitService:
             "reasons": reasons,
             "warnings": warnings,
             "user_email": identity["email"],
-            "user_name": identity["name"]
+            "user_name": identity["name"],
+
         }
 
     def _verify_remote(self) -> None:
@@ -321,7 +467,7 @@ class GitService:
                 check=True,
             )
         except FileNotFoundError as exc:
-            raise GitNotInstalledError("Git executable was not found on PATH.") from exc
+            raise GitNotInstalledError(f"Git executable '{self.git_executable}' was not found.") from exc
         except subprocess.CalledProcessError as exc:
             stderr = exc.stderr.strip()
             raise GitServiceError(f"Git command '{' '.join(command)}' failed: {stderr}") from exc
