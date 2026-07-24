@@ -121,6 +121,7 @@ class SyncEngine:
                 f"Metadata integrity check failed! Title '{submission.title}' does not match slug '{submission.slug}'."
             )
 
+
         # Phase 3: Defensive Conditional Source Integrity & SHA-256 Hash Verification
         source_hash = getattr(submission, "source_hash", None)
         computed_hash = None
@@ -302,6 +303,7 @@ class SyncEngine:
                         pass
 
             # 6. Execute planned Git Operations (Stage -> Commit -> Push)
+
             git_result: Dict[str, Any] = {"status": "no_changes", "committed": False, "pushed": False}
 
             if not changed_files and not self.git_service.get_status().get("clean", True):
