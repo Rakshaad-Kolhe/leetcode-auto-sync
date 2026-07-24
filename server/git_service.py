@@ -272,6 +272,7 @@ class GitService:
         """Verify GitHub contribution graph attribution requirements."""
         identity = self.verify_git_identity()
         reasons = []
+        warnings = []
 
         if not identity["valid"]:
             reasons.append("Git user identity (user.name / user.email) is unconfigured or invalid")
@@ -279,19 +280,22 @@ class GitService:
         try:
             branch_info = self.get_current_branch()
             if not branch_info["is_default"]:
-                reasons.append(f"Current branch '{branch_info['branch']}' is not default branch '{self.default_branch}'")
+                warnings.append(
+                    f"Commits on branch '{branch_info['branch']}' may not appear in GitHub contributions until merged into default branch '{self.default_branch}'"
+                )
         except GitServiceError as e:
-            reasons.append(str(e))
+            warnings.append(str(e))
 
         try:
             self._verify_remote()
         except GitServiceError as e:
-            reasons.append(str(e))
+            warnings.append(str(e))
 
         is_eligible = len(reasons) == 0
         return {
             "eligible": is_eligible,
             "reasons": reasons,
+            "warnings": warnings,
             "user_email": identity["email"],
             "user_name": identity["name"]
         }
@@ -312,15 +316,15 @@ class GitService:
             return subprocess.run(
                 command,
                 cwd=self.repo_path,
-                text=True,
                 capture_output=True,
+                text=True,
                 check=True,
             )
         except FileNotFoundError as exc:
             raise GitNotInstalledError("Git executable was not found on PATH.") from exc
         except subprocess.CalledProcessError as exc:
-            message = (exc.stderr or exc.stdout or "Git command failed.").strip()
-            raise GitServiceError(message) from exc
+            stderr = exc.stderr.strip()
+            raise GitServiceError(f"Git command '{' '.join(command)}' failed: {stderr}") from exc
 
 
 def generate_problem_commit_message(
@@ -331,6 +335,7 @@ def generate_problem_commit_message(
     template: str = "{action} {problem_number} - {problem_title}",
     difficulty: str = "",
     language: str = "",
+    trace_id: str | None = None,
 ) -> str:
     """Generate a formatted commit message for a problem write based on a template."""
     action = "Add" if is_new_problem else "Update"
@@ -339,6 +344,7 @@ def generate_problem_commit_message(
     if "{action}" not in template and not is_new_problem and template.startswith("Add "):
         template = "Update " + template[4:]
 
+    short_trace = trace_id[:8] if trace_id and len(trace_id) >= 8 else trace_id or ""
     mapping = SafeDict(
         problem_number=padded_id,
         problem_id=padded_id,
@@ -347,11 +353,18 @@ def generate_problem_commit_message(
         difficulty=difficulty,
         language=language,
         action=action,
+        trace_id=short_trace,
     )
     try:
-        return template.format_map(mapping)
+        msg = template.format_map(mapping)
     except Exception:
-        return f"{action} {padded_id} - {title}"
+        msg = f"{action} {padded_id} - {title}"
+
+    if trace_id and "{trace_id}" not in template:
+        short_id = trace_id[:8] if len(trace_id) >= 8 else trace_id
+        msg += f" (Trace: {short_id})"
+
+    return msg
 
 
 def _parse_status_line(line: str) -> Dict[str, str]:
