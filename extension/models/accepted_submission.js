@@ -14,12 +14,14 @@
      * @param {Object} params - Input parameters.
      * @param {Object} params.metadata - The SubmissionModel metadata.
      * @param {string} params.code - The full source code content.
+     * @param {string} [params.sourceHash] - SHA-256 hex checksum of original source code.
      * @param {string} [params.extractedAt] - ISO-8601 timestamp.
      * @param {string} [params.traceId] - Unique UUID v4 trace identifier.
      */
-    constructor({ metadata, code, extractedAt, traceId }) {
+    constructor({ metadata, code, extractedAt, traceId, sourceHash }) {
       this.metadata = metadata;
       this.code = code;
+      this.sourceHash = sourceHash || null;
       this.extractedAt = extractedAt || new Date().toISOString();
       const generateFn = LeetCodeAutoSync.generateTraceId || (typeof globalThis !== 'undefined' && globalThis.LeetCodeAutoSync && globalThis.LeetCodeAutoSync.generateTraceId);
       this.traceId = traceId || (

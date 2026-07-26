@@ -280,8 +280,6 @@
   }
 
   const MetadataParser = {
-    clearCache,
-
     /**
      * Clears all in-memory parser caches.
      */
@@ -296,10 +294,10 @@
     /**
      * Scrapes the page DOM for metadata and returns an immutable MetadataSnapshot.
      * @returns {MetadataSnapshot|null} Atomic frozen snapshot or null on parse failure.
-
      */
     parse() {
       try {
+        Logger.info("[PIPELINE] Metadata extraction started");
         const url = PageContext.getCurrentUrl();
         const slug = PageContext.getProblemSlug(url);
 
@@ -311,23 +309,22 @@
         const titleAndId = extractTitleAndId();
         const difficulty = extractDifficulty();
         const language = extractLanguage();
-        const url = PageContext.getCurrentUrl();
-        const slug = PageContext.getProblemSlug(url);
         const ObserverObj = LeetCodeAutoSync.Observer;
         const navVersion = ObserverObj && typeof ObserverObj.getNavigationVersion === "function"
           ? ObserverObj.getNavigationVersion()
           : 0;
 
-
         if (!titleAndId) {
-          Logger.warn("Parser: Failed to extract Problem Title and ID");
+          Logger.warn("[PIPELINE] MetadataParser: Failed to extract Problem Title and ID");
           return null;
         }
 
         if (!slug) {
-          Logger.warn("Parser: Failed to extract problem slug from URL:", url);
+          Logger.warn("[PIPELINE] MetadataParser: Failed to extract problem slug from URL:", url);
           return null;
         }
+
+        Logger.info("[PIPELINE] Metadata parsed successfully:", { id: titleAndId.id, title: titleAndId.title, slug, difficulty, language });
 
         const SnapshotClass = LeetCodeAutoSync.MetadataSnapshot;
         if (SnapshotClass) {
@@ -342,7 +339,6 @@
           });
           Logger.info(`Parser: Created frozen MetadataSnapshot [${snapshot.snapshotId}] (navVersion=${navVersion}):`, snapshot);
           return snapshot;
-
         }
 
         return {
@@ -355,7 +351,7 @@
           navVersion: navVersion
         };
       } catch (err) {
-        Logger.error("Parser: Exception during DOM parsing or snapshot creation:", err);
+        Logger.error("[PIPELINE] MetadataParser: Exception during DOM parsing or snapshot creation:", err.message, err.stack);
         return null;
       }
     },

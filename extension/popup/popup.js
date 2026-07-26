@@ -248,7 +248,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const { success, timestamp, error } = latestSync;
+    const { success, timestamp, durationMs, error } = latestSync;
 
     if (success === "SYNCING") {
       latestSyncBadge.textContent = "Syncing...";
@@ -260,8 +260,9 @@ document.addEventListener("DOMContentLoaded", () => {
       latestSyncBadge.className = "badge badge-easy"; // Green success
 
       if (timestamp) {
-        const time = new Date(timestamp).toLocaleTimeString();
-        latestSyncTimeText.textContent = time;
+        const timeStr = new Date(timestamp).toLocaleTimeString();
+        const durationStr = typeof durationMs === "number" ? ` (${(durationMs / 1000).toFixed(1)}s)` : "";
+        latestSyncTimeText.textContent = `${timeStr}${durationStr}`;
         syncTimeContainer.classList.remove("hidden");
       } else {
         syncTimeContainer.classList.add("hidden");
@@ -272,8 +273,9 @@ document.addEventListener("DOMContentLoaded", () => {
       latestSyncBadge.className = "badge badge-hard"; // Red failure
 
       if (timestamp) {
-        const time = new Date(timestamp).toLocaleTimeString();
-        latestSyncTimeText.textContent = time;
+        const timeStr = new Date(timestamp).toLocaleTimeString();
+        const durationStr = typeof durationMs === "number" ? ` (${(durationMs / 1000).toFixed(1)}s)` : "";
+        latestSyncTimeText.textContent = `${timeStr}${durationStr}`;
         syncTimeContainer.classList.remove("hidden");
       } else {
         syncTimeContainer.classList.add("hidden");

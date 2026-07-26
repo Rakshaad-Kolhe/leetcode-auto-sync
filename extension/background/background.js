@@ -24,9 +24,41 @@ let latestAcceptedSubmission = null;
 let latestSyncResult = {
   success: null, // null (none), "SYNCING", true (success), false (failed)
   timestamp: null,
+  durationMs: null,
   error: null
 };
 let isSyncing = false;
+let activeSyncKey = null;
+
+// Load persisted sync state on worker startup if available
+if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+  chrome.storage.local.get(["latestSyncResult", "latestAcceptedSubmission"], (items) => {
+    if (items.latestSyncResult) {
+      latestSyncResult = items.latestSyncResult;
+      Logger.info("Background: Restored persisted latestSyncResult:", latestSyncResult);
+    }
+    if (items.latestAcceptedSubmission) {
+      latestAcceptedSubmission = items.latestAcceptedSubmission;
+      Logger.info("Background: Restored persisted latestAcceptedSubmission:", latestAcceptedSubmission);
+    }
+  });
+}
+
+/**
+ * Persists current sync state to chrome.storage.local.
+ */
+function persistState() {
+  if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.set({
+      latestSyncResult,
+      latestAcceptedSubmission
+    }, () => {
+      if (chrome.runtime.lastError) {
+        Logger.warn("Background: Failed to persist state to storage:", chrome.runtime.lastError.message);
+      }
+    });
+  }
+}
 
 /**
  * Handles extension installation or startup events.
@@ -52,11 +84,18 @@ function notifyPopup(msg) {
  */
 async function performSync(submissionPayload) {
   Logger.info("Background: performSync() invoked with payload:", submissionPayload);
-  if (isSyncing) {
-    Logger.warn("Background: Sync already in progress, skipping duplicate request");
+  const payloadId = submissionPayload && submissionPayload.metadata ? submissionPayload.metadata.id : "0";
+  const payloadCode = submissionPayload ? submissionPayload.code || "" : "";
+  const currentKey = `${payloadId}_${payloadCode.length}_${submissionPayload.traceId || ""}`;
+
+  if (isSyncing && activeSyncKey === currentKey) {
+    Logger.warn(`Background: Sync already in progress for payload key '${currentKey}', skipping duplicate request`);
     return;
   }
+
   isSyncing = true;
+  activeSyncKey = currentKey;
+  const startTime = performance.now();
 
   Logger.info("Background: Synchronization started");
 
@@ -64,8 +103,10 @@ async function performSync(submissionPayload) {
   latestSyncResult = {
     success: "SYNCING",
     timestamp: new Date().toISOString(),
+    durationMs: null,
     error: null
   };
+  persistState();
   Logger.info("Background: Notifying popup of SYNCING status");
   notifyPopup({
     type: MessageTypes.SYNC_STATUS_CHANGED,
@@ -73,6 +114,7 @@ async function performSync(submissionPayload) {
   });
 
   try {
+    Logger.info("[PIPELINE] performSync invoked with submission payload");
     const { MetadataSnapshot, SubmissionModel, AcceptedSubmission, BackendService } = globalThis.LeetCodeAutoSync;
 
     Logger.info("Background: Reconstructing SubmissionModel and AcceptedSubmission...");
@@ -85,6 +127,7 @@ async function performSync(submissionPayload) {
     const submission = new AcceptedSubmission({
       metadata: metadataModel,
       code: submissionPayload.code,
+      sourceHash: submissionPayload.sourceHash,
       extractedAt: submissionPayload.extractedAt,
       traceId: submissionPayload.traceId
     });
@@ -92,20 +135,23 @@ async function performSync(submissionPayload) {
     Logger.info("Background: Reconstructed and validated Submission object:", submission);
 
     // 2. Dispatch payload via BackendService client
-    Logger.info("Background: Dispatching submission to BackendService.submitSubmission()...");
+    Logger.info("[PIPELINE] Submitting payload to backend POST /submit...");
     const response = await BackendService.submitSubmission(submission);
-    Logger.info("Background: BackendService.submitSubmission() response received:", response);
+    const durationMs = Math.round(performance.now() - startTime);
+    Logger.info(`[PIPELINE] Backend response received in ${durationMs}ms:`, response);
 
     latestSyncResult = {
       success: response.success,
       timestamp: new Date().toISOString(),
+      durationMs: durationMs,
       error: response.error
     };
+    persistState();
 
     if (response.success) {
-      Logger.info("Background: Synchronization completed successfully!");
+      Logger.info(`[PIPELINE] Synchronization completed successfully in ${durationMs}ms!`);
     } else {
-      Logger.error(`Background: Synchronization failed: ${response.error}`);
+      Logger.error(`[PIPELINE] Synchronization failed after ${durationMs}ms: ${response.error}`);
     }
 
     // Broadcast synchronization completion to popup
@@ -115,12 +161,15 @@ async function performSync(submissionPayload) {
       payload: latestSyncResult
     });
   } catch (err) {
+    const durationMs = Math.round(performance.now() - startTime);
     latestSyncResult = {
       success: false,
       timestamp: new Date().toISOString(),
+      durationMs: durationMs,
       error: err.message || "Sync processing error"
     };
-    Logger.error(`Background: Synchronization failed with exception: ${latestSyncResult.error}`, err);
+    persistState();
+    Logger.error(`[PIPELINE] Synchronization failed with exception after ${durationMs}ms: ${latestSyncResult.error}`, err.message, err.stack);
 
     notifyPopup({
       type: MessageTypes.SYNC_STATUS_CHANGED,
@@ -128,6 +177,7 @@ async function performSync(submissionPayload) {
     });
   } finally {
     isSyncing = false;
+    activeSyncKey = null;
   }
 }
 
@@ -173,7 +223,7 @@ function handleMessage(message, sender, sendResponse) {
   // Handle SUBMISSION_STARTED message
   if (message.type === MessageTypes.SUBMISSION_STARTED) {
     activeSubmissionState = { status: "RUNNING", verdict: null };
-    Logger.info("Background: Submission started cached");
+    Logger.info("[PIPELINE] Submission detector fired: SUBMISSION_STARTED");
     sendResponse({ status: "received" });
     return false;
   }
@@ -181,14 +231,14 @@ function handleMessage(message, sender, sendResponse) {
   // Handle SUBMISSION_FINISHED message
   if (message.type === MessageTypes.SUBMISSION_FINISHED) {
     activeSubmissionState = { status: "FINISHED", verdict: message.verdict };
-    Logger.info("Background: Submission finished cached with verdict", message.verdict);
+    Logger.info("[PIPELINE] Submission detector finished with verdict:", message.verdict);
     sendResponse({ status: "received" });
     return false;
   }
 
   // Handle SUBMISSION_ACCEPTED message containing complete submission details
   if (message.type === MessageTypes.SUBMISSION_ACCEPTED) {
-    Logger.info("Background: Received SUBMISSION_ACCEPTED message. Payload:", message.payload);
+    Logger.info("[PIPELINE] Stored in background cache. Payload received:", message.payload);
     latestAcceptedSubmission = message.payload;
     Logger.info("Background: Cached accepted submission details successfully:", latestAcceptedSubmission);
     
