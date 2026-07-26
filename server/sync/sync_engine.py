@@ -11,6 +11,7 @@ from server.config import LEETCODE_REPO_PATH
 from server.config.config_manager import AppConfig, ConfigManager
 from server.config.folder_layout import get_folder_layout_strategy, sanitize_filename
 from server.documentation.generator import DocumentationGenerator
+from server.documentation.index_generator import regenerate_topic_pages
 from server.documentation.models import ProblemMetadata
 from server.documentation.statistics import generate_statistics, scan_repository
 from server.git_service import (
@@ -285,32 +286,25 @@ class SyncEngine:
 
             topics_updated_count = 0
             if self.config.repository.auto_generate_topics and metadata.topics:
-                affected_topics = metadata.topics
-                topics_dir = self.repo_root / "Topics"
-                topics_dir.mkdir(parents=True, exist_ok=True)
+                for topic_name in metadata.topics:
+                    topic_file = self.repo_root / "Topics" / f"{topic_name}.md"
+                    snapshot.record_file(topic_file)
 
-                topics_map: Dict[str, List[ProblemMetadata]] = {}
-                for prob in all_problems:
-                    for top in prob.topics:
-                        topics_map.setdefault(top, []).append(prob)
-
-                for topic_name in affected_topics:
-                    topic_probs = topics_map.get(topic_name, [])
-                    if topic_probs:
-                        topic_content = generator.generate_topic_page(topic_name, topic_probs)
-                        topic_file = topics_dir / f"{topic_name}.md"
-                        if self.change_detector.detect_file_change(topic_file, topic_content):
-                            snapshot.record_file(topic_file)
-                            _atomic_write(topic_file, topic_content)
-                            self.change_detector.record_change(topic_file, topic_content)
-                            rel_topic = (Path("Topics") / f"{topic_name}.md").as_posix()
-                            if rel_topic not in changed_files:
-                                changed_files.append(rel_topic)
-                            topics_updated_count += 1
-                            logger.info(
-                                "[EVENT:TOPIC_UPDATED]",
-                                extra={"event": "TOPIC_UPDATED", "topic": topic_name},
-                            )
+                topic_paths = regenerate_topic_pages(
+                    self.repo_root, all_problems, generator, affected_topics=metadata.topics
+                )
+                for topic_file in topic_paths:
+                    if topic_file.exists():
+                        topic_content = topic_file.read_text(encoding="utf-8")
+                        self.change_detector.record_change(topic_file, topic_content)
+                        rel_topic = topic_file.relative_to(self.repo_root).as_posix()
+                        if rel_topic not in changed_files:
+                            changed_files.append(rel_topic)
+                        topics_updated_count += 1
+                        logger.info(
+                            "[EVENT:TOPIC_UPDATED]",
+                            extra={"event": "TOPIC_UPDATED", "topic": topic_file.stem},
+                        )
 
             # 6. Plan commit and execute Git operations
             git_result: Dict[str, Any] = {"status": "no_changes"}
