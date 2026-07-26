@@ -271,7 +271,17 @@
 
 
 
+  function clearCache() {
+    cachedDifficulty = null;
+    cachedTitleAndId = null;
+    cachedSlug = null;
+    cachedLanguage = null;
+    Logger.info("MetadataParser: Internal cache cleared due to navigation");
+  }
+
   const MetadataParser = {
+    clearCache,
+
     /**
      * Clears all in-memory parser caches.
      */
@@ -286,9 +296,18 @@
     /**
      * Scrapes the page DOM for metadata and returns an immutable MetadataSnapshot.
      * @returns {MetadataSnapshot|null} Atomic frozen snapshot or null on parse failure.
+
      */
     parse() {
       try {
+        const url = PageContext.getCurrentUrl();
+        const slug = PageContext.getProblemSlug(url);
+
+        // Clear stale cached metadata if slug has changed
+        if (cachedSlug && cachedSlug !== slug) {
+          clearCache();
+        }
+
         const titleAndId = extractTitleAndId();
         const difficulty = extractDifficulty();
         const language = extractLanguage();
@@ -298,6 +317,7 @@
         const navVersion = ObserverObj && typeof ObserverObj.getNavigationVersion === "function"
           ? ObserverObj.getNavigationVersion()
           : 0;
+
 
         if (!titleAndId) {
           Logger.warn("Parser: Failed to extract Problem Title and ID");
@@ -322,6 +342,7 @@
           });
           Logger.info(`Parser: Created frozen MetadataSnapshot [${snapshot.snapshotId}] (navVersion=${navVersion}):`, snapshot);
           return snapshot;
+
         }
 
         return {

@@ -118,11 +118,25 @@
 
         Logger.info(`SolutionService: Solution extraction completed. Length: ${code.length} characters.`);
 
+        let sourceHash = null;
+        try {
+          if (typeof crypto !== "undefined" && crypto.subtle) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(code);
+            const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            sourceHash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+          }
+        } catch (hErr) {
+          Logger.warn("SolutionService: Failed to compute SHA-256 hash:", hErr);
+        }
+
         // 3. Assemble complete AcceptedSubmission model
         Logger.info("SolutionService: Assembling AcceptedSubmission model...");
         const submission = new SubmissionClass({
           metadata: metadataModel,
           code: code,
+          sourceHash: sourceHash,
           extractedAt: new Date().toISOString()
         });
 
