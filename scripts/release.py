@@ -9,8 +9,20 @@ import sys
 import zipfile
 from pathlib import Path
 
+import re
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
-TARGET_VERSION = "1.0.1"
+
+def get_project_version() -> str:
+    pyproject_path = REPO_ROOT / "pyproject.toml"
+    if pyproject_path.exists():
+        text = pyproject_path.read_text(encoding="utf-8")
+        match = re.search(r'^\s*version\s*=\s*"([^"]+)"', text, re.MULTILINE)
+        if match:
+            return match.group(1)
+    return "1.0.0"
+
+TARGET_VERSION = get_project_version()
 
 
 def compute_sha256(path: Path) -> str:
@@ -64,7 +76,7 @@ def run_release_automation() -> bool:
     if v_py != TARGET_VERSION or v_pkg != TARGET_VERSION or v_man != TARGET_VERSION:
         print("[FAIL] Version numbers do not match target version.")
         return False
-    print("[PASS] All package manifests have matching version 1.0.1.")
+    print(f"[PASS] All package manifests have matching version {TARGET_VERSION}.")
 
     # 2. Check documentation files exist
     required_docs = [

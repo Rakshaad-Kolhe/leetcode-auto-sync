@@ -12,9 +12,9 @@ from typing import Any, Dict
 from server.config.config_manager import ConfigManager
 from server.git_service import GitService
 
-logger = logging.getLogger(__name__)
+from server.version import __version__ as SERVICE_VERSION
 
-SERVICE_VERSION = "1.0.1"
+logger = logging.getLogger(__name__)
 
 
 def sanitize_config(data: Any) -> Any:

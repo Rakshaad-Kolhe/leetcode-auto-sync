@@ -9,7 +9,7 @@ if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
 from fastapi.testclient import TestClient
-from server.app import app
+from server.app import app, SERVICE_VERSION
 
 
 client = TestClient(app)
@@ -20,7 +20,7 @@ def test_get_root_endpoint():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "running"
-    assert data["version"] == "1.0.1"
+    assert data["version"] == SERVICE_VERSION
 
 
 def test_get_health_endpoint():

@@ -32,8 +32,9 @@ from server.metadata.graphql_client import LeetCodeGraphQLClient
 from server.schemas import Submission
 from server.submit_service import process_submission
 
+from server.version import __version__ as SERVICE_VERSION
+
 SERVICE_NAME = "leetcode-auto-sync"
-SERVICE_VERSION = "1.0.1"
 
 
 class JsonFormatter(logging.Formatter):
