@@ -7,6 +7,8 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from server.version import __version__
+
 logger = logging.getLogger(__name__)
 
 
@@ -16,7 +18,7 @@ class MetricsCollector:
     _instance: Optional[MetricsCollector] = None
 
     def __init__(self) -> None:
-        self.version = "1.0.1"
+        self.version = __version__
         self.sync_count = 0
         self.successful_syncs = 0
         self.failed_syncs = 0

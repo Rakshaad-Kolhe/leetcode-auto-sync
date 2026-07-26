@@ -7,7 +7,7 @@ SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
 if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
-from server.diagnostics import generate_diagnostics_bundle, sanitize_config
+from server.diagnostics import SERVICE_VERSION, generate_diagnostics_bundle, sanitize_config
 
 
 def test_sanitize_config_masks_sensitive_tokens():
@@ -30,6 +30,6 @@ def test_generate_diagnostics_bundle(tmp_path: Path):
 
     bundle = generate_diagnostics_bundle(tmp_path)
     assert bundle["service"] == "leetcode-auto-sync"
-    assert bundle["version"] == "1.0.1"
+    assert bundle["version"] == SERVICE_VERSION
     assert "environment" in bundle
     assert "configuration" in bundle

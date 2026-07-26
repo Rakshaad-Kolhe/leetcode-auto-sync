@@ -5,10 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
+from server.version import __version__
+
 
 @dataclass
 class MetricsResponse:
-    version: str = "1.0.1"
+    version: str = __version__
     sync_count: int = 0
     average_sync_ms: float = 0.0
     cache_hit_ratio: float = 0.0

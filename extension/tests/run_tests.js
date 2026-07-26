@@ -76,12 +76,15 @@ loadScript("shared/logger.js");
 loadScript("submission/submission_state.js");
 loadScript("content/page_context.js");
 loadScript("models/submission_model.js");
+loadScript("models/accepted_submission.js");
 loadScript("parser/metadata_parser.js");
 loadScript("parser/solution_parser.js");
 loadScript("services/metadata_service.js");
+loadScript("services/solution_service.js");
+loadScript("services/backend_service.js");
 
 // Resolve symbols from global LeetCodeAutoSync object
-const { SubmissionState, PageContext, MetadataService, SolutionParser, Verdicts } = globalThis.LeetCodeAutoSync;
+const { SubmissionState, PageContext, MetadataService, SolutionParser, SolutionService, BackendService, Verdicts } = globalThis.LeetCodeAutoSync;
 
 let testFailures = 0;
 function assert(condition, message) {
@@ -156,6 +159,7 @@ async function runAllTests() {
     // Test 5: MetadataService verdict routing
     console.log("\n--- Test 5: MetadataService event routing ---");
     let metadataAcceptedCalled = false;
+    const origSolutionService = globalThis.LeetCodeAutoSync.SolutionService;
     globalThis.LeetCodeAutoSync.SolutionService = {
       processAcceptedSubmission: () => {
         metadataAcceptedCalled = true;
@@ -182,6 +186,7 @@ async function runAllTests() {
     assert(metadataAcceptedCalled === true, "MetadataService fires on Accepted verdict");
 
     MetadataService.destroy();
+    globalThis.LeetCodeAutoSync.SolutionService = origSolutionService;
 
     // Test 6: Solution Extraction Engine — Validation Logic
     console.log("\n--- Test 6: Solution Extraction Code Validation ---");
@@ -225,6 +230,120 @@ async function runAllTests() {
     const lastDiag = diags[diags.length - 1];
     assert(lastDiag.strategy === "DOM_SORTED", "Diagnostic correctly records selected strategy");
     assert(lastDiag.success === true, "Diagnostic records successful validation result");
+
+    // Test 9: AcceptedSubmission Model sourceHash Preservation
+    console.log("\n--- Test 9: AcceptedSubmission sourceHash Preservation ---");
+    const { AcceptedSubmission, SubmissionModel } = globalThis.LeetCodeAutoSync;
+    const mockMeta = new SubmissionModel({
+      id: 1,
+      title: "Two Sum",
+      slug: "two-sum",
+      difficulty: "Easy",
+      language: "cpp",
+      url: "https://leetcode.com/problems/two-sum/",
+      verdict: "Accepted"
+    });
+    const subObj = new AcceptedSubmission({
+      metadata: mockMeta,
+      code: "class Solution {};",
+      sourceHash: "deadbeef12345678"
+    });
+    assert(subObj.sourceHash === "deadbeef12345678", "AcceptedSubmission model preserves sourceHash property");
+    assert(subObj.validate() === true, "AcceptedSubmission model with sourceHash validates successfully");
+
+    // Test 10: Complete End-to-End Extraction & Dispatch Pipeline
+    console.log("\n--- Test 10: End-to-End Extraction & Background Message Dispatch ---");
+    sentMessages.length = 0;
+    const { MetadataParser, SolutionService } = globalThis.LeetCodeAutoSync;
+    
+    // Mock DOM elements required for MetadataParser.parse()
+    queryResults = {
+      '[data-cy="question-title"]': [{ textContent: "1. Two Sum" }],
+      '[data-difficulty]': [{ textContent: "Easy" }],
+      '[data-cy="lang-select"]': [{ textContent: "cpp" }],
+      '.monaco-editor': [{
+        querySelectorAll: (sel) => (sel === '.view-line' ? mockLines : [])
+      }],
+      '.view-line': mockLines
+    };
+
+    const parsedSnapshot = MetadataParser.parse();
+    assert(parsedSnapshot !== null, "MetadataParser.parse() completes without SyntaxError and returns snapshot");
+    assert(parsedSnapshot.id === 1 && parsedSnapshot.slug === "two-sum", "MetadataParser accurately extracts problem details");
+
+    // Initialize SolutionService and trigger processAcceptedSubmission
+    SolutionService.init();
+    await SolutionService.processAcceptedSubmission(mockMeta);
+
+    const dispatchedAcceptedMsg = sentMessages.find(m => m.type === "SUBMISSION_ACCEPTED");
+    assert(dispatchedAcceptedMsg !== undefined, "SolutionService successfully dispatches SUBMISSION_ACCEPTED message to background");
+    assert(dispatchedAcceptedMsg && dispatchedAcceptedMsg.payload && dispatchedAcceptedMsg.payload.code.includes("class Solution"), "Dispatched message contains extracted code");
+    SolutionService.destroy();
+
+    // Test 11: Configurable Submit Timeout Boundary
+    console.log("\n--- Test 11: Configurable Submit Timeout Boundary ---");
+    const originalFetch = globalThis.fetch;
+    let fetchCalledWithTimeout = false;
+    globalThis.fetch = async (url, options) => {
+      fetchCalledWithTimeout = true;
+      // Simulate 15 second backend processing delay
+      await new Promise(r => setTimeout(r, 150));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, status: "created" })
+      };
+    };
+
+    const submitRes = await BackendService.submitSubmission(subObj);
+    assert(fetchCalledWithTimeout === true, "BackendService.submitSubmission() executed network fetch");
+    assert(submitRes.success === true, "15-second simulated backend delay completes successfully without timing out");
+
+    // Test 12: Transient Error Retry Policy (503 Service Unavailable)
+    console.log("\n--- Test 12: Transient Error Retry Policy (503 Retry) ---");
+    let fetchAttempts = 0;
+    globalThis.fetch = async (url, options) => {
+      fetchAttempts++;
+      if (fetchAttempts === 1) {
+        return { ok: false, status: 503, json: async () => ({ detail: "Service Unavailable" }) };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, status: "created" })
+      };
+    };
+
+    const retryRes = await BackendService.submitSubmission(subObj);
+    assert(fetchAttempts === 2, "BackendService retried transient 503 error automatically");
+    assert(retryRes.success === true, "Request succeeds on retry attempt");
+
+    // Test 13: Non-Retryable Client Error Handling (400 Bad Request)
+    console.log("\n--- Test 13: Non-Retryable Error Handling (400 Bad Request) ---");
+    let clientErrorAttempts = 0;
+    globalThis.fetch = async (url, options) => {
+      clientErrorAttempts++;
+      return { ok: false, status: 400, json: async () => ({ detail: "Invalid payload format" }) };
+    };
+
+    const clientErrRes = await BackendService.submitSubmission(subObj);
+    assert(clientErrorAttempts === 1, "BackendService did NOT retry client 400 Bad Request error");
+    assert(clientErrRes.success === false && clientErrRes.error.includes("Invalid payload format"), "Returns clear error details for 400 error");
+
+    // Test 14: Invalid Payload Schema Lock Validation
+    console.log("\n--- Test 14: Invalid Payload Schema Lock Validation ---");
+    const invalidSubObj = new AcceptedSubmission({
+      metadata: mockMeta,
+      code: "", // Empty code fails schema validation
+      sourceHash: null
+    });
+
+    const invalidRes = await BackendService.submitSubmission(invalidSubObj);
+    assert(invalidRes.success === false, "Invalid payload correctly rejected before dispatching network request");
+    assert(invalidRes.error.includes("Payload validation failed"), "Returns structured validation error");
+
+    // Restore original global fetch
+    globalThis.fetch = originalFetch;
 
   } catch (err) {
     console.error("Test execution threw exception:", err);

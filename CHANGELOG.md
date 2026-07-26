@@ -7,26 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.1] - 2026-07-24
+## [1.0.0] - 2026-07-26
 
 ### Added
-- **Modular Structured Logging**: `server/logging/` package with JSON and human-readable formatters emitting structured telemetry events (`SYNC_STARTED`, `METADATA_FETCHED`, `FILES_UPDATED`, `GIT_COMMIT_CREATED`, `GIT_PUSH_COMPLETED`).
-- **Runtime Performance Telemetry**: `server/metrics/` package with `GET /metrics` returning sync count, average duration, cache hit ratio, and Git/GraphQL breakdown.
-- **Benchmark Suite**: `benchmarks/benchmark_sync.py` measuring 100, 500, and 1000 submission runs.
-- **Release Automation**: `scripts/release.py` verifying versions, package checksums, and release notes.
-
-### Fixed
-- Included `httpx>=0.27.0` in `server/requirements.txt` to fix GitHub Actions CI test client failure.
-- Updated Pydantic `@validator` to `@field_validator` in `server/schemas.py`.
-
----
-
-## [1.0.0] - 2026-07-23
-
-### Added
-- Initial public release candidate of LeetCode Auto Sync.
-- Intelligent, idempotent synchronization engine with SHA-256 change detection.
-- GraphQL metadata enrichment with topic tags, company tags, and similarity recommendations.
-- Custom README templates (`classic`, `detailed`, `minimal`) and layout strategies.
-- Health dashboard (`GET /status`) and support bundle generator (`GET /diagnostics`).
-- Cross-platform installation scripts for Windows, Linux, and macOS.
+- **Official Public Release of LeetCode Auto Sync v1.0.0**.
+- **Intelligent, Idempotent Synchronization Engine**: SHA-256 source code and metadata hash verification prevents duplicate commits and redundant GitHub pushes.
+- **Chrome Extension (Manifest V3)**: Multi-tier Monaco editor solution extractor (`Monaco API` -> `Viewport DOM lines` -> `Full DOM fallback`) with automated submission state machine (`IDLE` -> `SUBMITTING` -> `RUNNING` -> `FINISHED`).
+- **GraphQL Metadata Enrichment**: Fetches problem tags, company tags, difficulty ratings, acceptance ratios, and similar problem recommendations directly from LeetCode GraphQL API.
+- **Customizable Documentation Layouts**: Configurable directory structure (`difficulty-number-title`, `classic`, etc.) and markdown templates (`classic`, `detailed`, `minimal`).
+- **Transient Error Retry & Endpoint Boundaries**: Configurable 45-second submit timeout boundary with automatic exponential backoff retries (1s, 2s) for 502/503/504 gateway errors.
+- **Service Worker State Persistence**: Persists active sync outcomes to `chrome.storage.local` across background idle suspension and popup closing.
+- **Diagnostics & Health Dashboard**: Built-in `GET /status`, `GET /diagnostics`, and `GET /metrics` endpoints with one-click report generator in popup.
+- **Cross-Platform Installers**: Automated installation scripts for Windows (`install.ps1`), Linux (`install.sh`), and macOS (`install.command`).
