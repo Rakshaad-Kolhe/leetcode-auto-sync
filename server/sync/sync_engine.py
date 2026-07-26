@@ -352,6 +352,7 @@ class SyncEngine:
                     logger.info("[EVENT:ROOT_README_UPDATED]", extra={"event": "ROOT_README_UPDATED"})
 
             topics_updated_count = 0
+
             if self.config.repository.auto_generate_topics:
                 t_topic_start = time.perf_counter()
                 affected = metadata.topics if (metadata and metadata.topics) else None
