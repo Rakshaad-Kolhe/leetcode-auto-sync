@@ -47,6 +47,25 @@ def test_legacy_submission_instantiation_without_optional_fields():
     assert getattr(sub, "char_count", None) is None
 
 
+def test_submission_preserves_source_hash():
+    """Verify Submission model explicitly preserves source_hash, line_count, and char_count attributes."""
+    sub = Submission(
+        id=1,
+        title="Two Sum",
+        slug="two-sum",
+        difficulty="Easy",
+        language="cpp",
+        code="class Solution { public: int test() { return 1; } };",
+        source_hash="abc123def456",
+        line_count=10,
+        char_count=50,
+    )
+    assert sub.source_hash == "abc123def456"
+    assert sub.line_count == 10
+    assert sub.char_count == 50
+
+
+
 def test_legacy_submission_sync_succeeds_and_skips_hash_check(repo_env: Path):
     """Verify legacy Submission payload synchronizes without AttributeError."""
     git_srv = GitService(repo_path=repo_env, auto_push=False)
