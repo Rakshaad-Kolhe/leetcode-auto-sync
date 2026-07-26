@@ -17,13 +17,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.responses import Response
 
-from config import ALLOWED_EXTENSION_IDS, ENV, HOST, LEETCODE_REPO_PATH, LOG_LEVEL, PORT
-from config.config_manager import ConfigManager
-from diagnostics import generate_diagnostics_bundle
-from git_service import GitService, GitServiceError, InvalidRepositoryError
-from metadata.graphql_client import LeetCodeGraphQLClient
-from schemas import Submission
-from submit_service import process_submission
+from server.config import (
+    ALLOWED_EXTENSION_IDS,
+    ENV,
+    HOST,
+    LEETCODE_REPO_PATH,
+    LOG_LEVEL,
+    PORT,
+)
+from server.config.config_manager import ConfigManager
+from server.diagnostics import generate_diagnostics_bundle
+from server.git_service import GitService, GitServiceError, InvalidRepositoryError
+from server.metadata.graphql_client import LeetCodeGraphQLClient
+from server.schemas import Submission
+from server.submit_service import process_submission
 
 SERVICE_NAME = "leetcode-auto-sync"
 SERVICE_VERSION = "1.0.1"
@@ -159,7 +166,7 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "version": SERVICE_VERSION}
 
 
-from metrics import MetricsCollector
+from server.metrics import MetricsCollector
 
 
 @app.get("/metrics")

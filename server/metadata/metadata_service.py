@@ -6,14 +6,19 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from config import LEETCODE_REPO_PATH
-from config.config_manager import AppConfig, ConfigManager, MetadataConfig
+from server.config import LEETCODE_REPO_PATH
+from server.config.config_manager import AppConfig, ConfigManager, MetadataConfig
 
 from .cache import MetadataCache
 from .graphql_client import LeetCodeGraphQLClient
 from .models import EnrichedMetadata
 
 logger = logging.getLogger(__name__)
+
+
+class MetadataMismatchError(ValueError):
+    """Raised when metadata validation between submission payload and authoritative GraphQL data fails."""
+    pass
 
 
 class MetadataService:
@@ -103,6 +108,38 @@ class MetadataService:
             difficulty=difficulty,
             submission_data=submission_data,
         )
+
+    def verify_metadata_consistency(
+        self,
+        submission_id: int,
+        submission_title: str,
+        submission_slug: str,
+        enriched: EnrichedMetadata,
+    ) -> None:
+        """Verify consistency between submission payload metadata and GraphQL enriched metadata.
+
+        Raises MetadataMismatchError if any conflict exists.
+        """
+        if enriched.problem_number and enriched.problem_number != submission_id:
+            raise MetadataMismatchError(
+                f"❌ Metadata mismatch: Expected frontend ID {enriched.problem_number} for slug '{submission_slug}', "
+                f"but received ID {submission_id} (title '{submission_title}') in submission payload."
+            )
+
+        if enriched.slug and enriched.slug.strip().lower() != submission_slug.strip().lower():
+            raise MetadataMismatchError(
+                f"❌ Metadata mismatch: Expected slug '{enriched.slug}', "
+                f"but received '{submission_slug}' in submission payload."
+            )
+
+        if enriched.title and submission_title:
+            norm_sub = "".join(c.lower() for c in submission_title if c.isalnum())
+            norm_enr = "".join(c.lower() for c in enriched.title if c.isalnum())
+            if norm_sub != norm_enr and not norm_sub.endswith(norm_enr) and not norm_enr.endswith(norm_sub):
+                raise MetadataMismatchError(
+                    f"❌ Metadata mismatch: Expected title '{enriched.title}' for slug '{submission_slug}', "
+                    f"but received title '{submission_title}' in submission payload."
+                )
 
     def _fallback_metadata(
         self,

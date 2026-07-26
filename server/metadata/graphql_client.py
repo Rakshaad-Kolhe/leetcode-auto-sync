@@ -38,7 +38,7 @@ query getQuestionDetail($titleSlug: String!) {
 """
 
 
-from retry import retry_with_backoff
+from server.retry import retry_with_backoff
 
 
 class LeetCodeGraphQLClient:

@@ -7,8 +7,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
-from git_service import GitService, generate_problem_commit_message
-from schemas import Submission
+from server.git_service import GitService, generate_problem_commit_message
+from server.schemas import Submission
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +43,12 @@ class CommitPlanner:
 
         # If no files changed and git status is clean, skip commit & push
         if not changed_files and repo_status["clean"]:
-            logger.info("[SYNC] Repository clean and no files changed. Commit & push skipped.")
+            reason_msg = "Git commit skipped: No changes detected (identical SHA-256 content) and working tree clean."
+            logger.info(f"[SYNC] {reason_msg}")
             return CommitPlan(
                 should_commit=False,
                 should_push=False,
-                reason="Repository up-to-date; no changes detected.",
+                reason=reason_msg,
                 changed_files=[],
                 is_new_problem=is_new_problem,
             )

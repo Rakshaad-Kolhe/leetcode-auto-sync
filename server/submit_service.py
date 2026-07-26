@@ -6,11 +6,11 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional
 
-from git_service import GitService
-from repository_writer import write_submission
-from root_readme import generate_readme
-from schemas import Submission
-from sync import SyncEngine
+from server.git_service import GitService
+from server.repository_writer import write_submission
+from server.root_readme import generate_readme
+from server.schemas import Submission
+from server.sync import SyncEngine
 
 logger = logging.getLogger(__name__)
 

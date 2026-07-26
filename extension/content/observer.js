@@ -8,17 +8,19 @@
   const { Logger } = LeetCodeAutoSync;
 
   let lastUrl = window.location.href;
+  let navigationVersion = 1;
   const callbacks = [];
 
   /**
    * Fires all registered page change callbacks.
    * @param {string} newUrl - The new URL.
+   * @param {number} version - Current navigation version token.
    */
-  function notifyChange(newUrl) {
-    Logger.info("Navigation detected to:", newUrl);
+  function notifyChange(newUrl, version) {
+    Logger.info(`Navigation detected to: ${newUrl} [nav_version=${version}]`);
     callbacks.forEach((callback) => {
       try {
-        callback(newUrl);
+        callback(newUrl, version);
       } catch (err) {
         Logger.error("Error in onPageChanged callback:", err);
       }
@@ -32,18 +34,27 @@
     const currentUrl = window.location.href;
     if (currentUrl !== lastUrl) {
       lastUrl = currentUrl;
-      notifyChange(currentUrl);
+      navigationVersion++;
+      notifyChange(currentUrl, navigationVersion);
     }
   }
 
   /**
    * Registers a callback that fires whenever navigation occurs.
-   * @param {function(string): void} callback - The callback to trigger.
+   * @param {function(string, number): void} callback - The callback to trigger.
    */
   function onPageChanged(callback) {
     if (typeof callback === "function") {
       callbacks.push(callback);
     }
+  }
+
+  /**
+   * Returns current navigation version.
+   * @returns {number}
+   */
+  function getNavigationVersion() {
+    return navigationVersion;
   }
 
   /**
@@ -85,7 +96,8 @@
   initObserver();
 
   LeetCodeAutoSync.Observer = {
-    onPageChanged
+    onPageChanged,
+    getNavigationVersion
   };
 
   global.LeetCodeAutoSync = LeetCodeAutoSync;

@@ -17,6 +17,7 @@ def retry_with_backoff(
     initial_delay: float = 0.1,
     backoff_factor: float = 2.0,
     exceptions: Tuple[Type[BaseException], ...] = (Exception,),
+    non_retryable_exceptions: Tuple[Type[BaseException], ...] = (),
 ) -> Callable[[F], F]:
     """Decorator to retry a callable with exponential backoff."""
 
@@ -32,6 +33,18 @@ def retry_with_backoff(
                 try:
                     return func(*args, **kwargs)
                 except exceptions as exc:
+                    # Check if exception is explicitly marked non-retryable
+                    if non_retryable_exceptions and isinstance(exc, non_retryable_exceptions):
+                        logger.warning(
+                            f"[RETRY_SKIPPED] {func_name} failed with non-retryable error: {exc}"
+                        )
+                        raise exc
+                    if getattr(exc, "retryable", True) is False:
+                        logger.warning(
+                            f"[RETRY_SKIPPED] {func_name} failed with non-retryable exception attribute: {exc}"
+                        )
+                        raise exc
+
                     last_exception = exc
                     if attempt == max_retries:
                         logger.warning(

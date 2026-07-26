@@ -133,7 +133,8 @@
         slug: submission.metadata.slug,
         difficulty: submission.metadata.difficulty,
         language: submission.metadata.language,
-        code: submission.code
+        code: submission.code,
+        trace_id: submission.traceId
       };
 
       const baseUrl = await getBackendUrl();

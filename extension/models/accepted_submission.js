@@ -21,10 +21,13 @@
       this.metadata = metadata;
       this.code = code;
       this.extractedAt = extractedAt || new Date().toISOString();
+      const generateFn = LeetCodeAutoSync.generateTraceId || (typeof globalThis !== 'undefined' && globalThis.LeetCodeAutoSync && globalThis.LeetCodeAutoSync.generateTraceId);
       this.traceId = traceId || (
-        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-          ? crypto.randomUUID()
-          : `tr_${Math.random().toString(36).substring(2, 11)}`
+        typeof generateFn === "function"
+          ? generateFn()
+          : (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+            ? `SYNC-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${crypto.randomUUID().slice(0,8)}`
+            : `SYNC-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${Math.random().toString(36).substring(2, 10)}`)
       );
     }
 

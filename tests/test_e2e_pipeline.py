@@ -10,9 +10,9 @@ SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
 if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
-from git_service import GitService
-from schemas import Submission
-from sync.sync_engine import SyncEngine
+from server.git_service import GitService
+from server.schemas import Submission
+from server.sync.sync_engine import SyncEngine
 
 
 def test_end_to_end_synchronization_pipeline(tmp_path: Path):
@@ -74,3 +74,56 @@ def test_end_to_end_synchronization_pipeline(tmp_path: Path):
     commit_log = subprocess.run(["git", "log", "-n", "1"], cwd=repo_dir, check=True, capture_output=True, text=True).stdout
     assert "Add 0001 - Two Sum" in commit_log or "Update 0001 - Two Sum" in commit_log
     assert "Trace: 7d59f2d3" in commit_log
+
+
+def test_consecutive_submissions_end_to_end(tmp_path: Path):
+    # Setup repo
+    repo_dir = tmp_path / "leetcode-sync-consecutive"
+    repo_dir.mkdir()
+
+    subprocess.run(["git", "init"], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_dir, check=True, capture_output=True)
+
+    readme_path = repo_dir / "README.md"
+    readme_path.write_text("# LeetCode Auto Sync Repository\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=repo_dir, check=True, capture_output=True)
+
+    git_srv = GitService(repo_path=repo_dir, auto_push=False)
+    engine = SyncEngine(repo_root=repo_dir, git_service=git_srv)
+
+    # Submission 1: Problem A (Add Two Numbers)
+    sub_a = Submission(
+        id=2,
+        title="Add Two Numbers",
+        slug="add-two-numbers",
+        difficulty="Medium",
+        language="python3",
+        code="class Solution:\n    def addTwoNumbers(self, l1, l2):\n        pass\n",
+        trace_id="SYNC-20260724-aaaaaaaa",
+    )
+    res_a = engine.sync_submission(sub_a)
+    assert res_a["status"] in ("created", "updated")
+    assert res_a["trace_id"] == "SYNC-20260724-aaaaaaaa"
+
+    # Submission 2: Problem B (Palindrome Number)
+    sub_b = Submission(
+        id=9,
+        title="Palindrome Number",
+        slug="palindrome-number",
+        difficulty="Easy",
+        language="python3",
+        code="class Solution:\n    def isPalindrome(self, x: int) -> bool:\n        return str(x) == str(x)[::-1]\n",
+        trace_id="SYNC-20260724-bbbbbbbb",
+    )
+    res_b = engine.sync_submission(sub_b)
+    assert res_b["status"] in ("created", "updated")
+    assert res_b["trace_id"] == "SYNC-20260724-bbbbbbbb"
+
+    # Check Git Log has 2 new commits
+    commits = subprocess.run(["git", "log", "--oneline"], cwd=repo_dir, check=True, capture_output=True, text=True).stdout.splitlines()
+    assert len(commits) >= 3 # Initial commit + Sub A + Sub B
+    assert any("Add 0009 - Palindrome Number" in c for c in commits)
+    assert any("Add 0002 - Add Two Numbers" in c for c in commits)
+

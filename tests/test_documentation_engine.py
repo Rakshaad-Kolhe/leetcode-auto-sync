@@ -10,13 +10,13 @@ from pathlib import Path
 SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
 sys.path.insert(0, str(SERVER_DIR))
 
-from documentation.generator import DocumentationGenerator  # noqa: E402
-from documentation.index_generator import regenerate_root_readme  # noqa: E402
-from documentation.markdown import code_fence, heading, horizontal_rule, table, unordered_list  # noqa: E402
-from documentation.models import ProblemMetadata  # noqa: E402
-from documentation.statistics import generate_statistics, scan_repository  # noqa: E402
-from repository_writer import write_submission  # noqa: E402
-from schemas import Submission  # noqa: E402
+from server.documentation.generator import DocumentationGenerator  # noqa: E402
+from server.documentation.index_generator import regenerate_root_readme  # noqa: E402
+from server.documentation.markdown import code_fence, heading, horizontal_rule, table, unordered_list  # noqa: E402
+from server.documentation.models import ProblemMetadata  # noqa: E402
+from server.documentation.statistics import generate_statistics, scan_repository  # noqa: E402
+from server.repository_writer import write_submission  # noqa: E402
+from server.schemas import Submission  # noqa: E402
 
 
 class DocumentationEngineTests(unittest.TestCase):

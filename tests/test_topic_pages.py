@@ -10,9 +10,9 @@ from pathlib import Path
 SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
 sys.path.insert(0, str(SERVER_DIR))
 
-from documentation.index_generator import regenerate_root_readme  # noqa: E402
-from repository_writer import write_submission  # noqa: E402
-from schemas import Submission  # noqa: E402
+from server.documentation.index_generator import regenerate_root_readme  # noqa: E402
+from server.repository_writer import write_submission  # noqa: E402
+from server.schemas import Submission  # noqa: E402
 
 
 class TopicPagesTests(unittest.TestCase):

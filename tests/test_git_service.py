@@ -11,10 +11,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
-sys.path.insert(0, str(SERVER_DIR))
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
-from git_service import (  # noqa: E402
+from server.git_service import (  # noqa: E402
     CommitFailedError,
     DetachedHeadError,
     GitNotInstalledError,

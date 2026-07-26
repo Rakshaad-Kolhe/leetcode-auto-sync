@@ -21,7 +21,7 @@
      * @param {string} data.verdict - Submission execution verdict (e.g. Accepted).
      * @param {string} data.extractedAt - ISO-8601 timestamp.
      */
-    constructor({ id, title, slug, difficulty, language, url, verdict, extractedAt }) {
+    constructor({ id, title, slug, difficulty, language, url, verdict, extractedAt, snapshotId, navVersion }) {
       this.id = id;
       this.title = title;
       this.slug = slug;
@@ -30,6 +30,8 @@
       this.url = url;
       this.verdict = verdict;
       this.extractedAt = extractedAt || new Date().toISOString();
+      this.snapshotId = snapshotId || null;
+      this.navVersion = typeof navVersion === "number" ? navVersion : 0;
     }
 
     /**
@@ -64,6 +66,12 @@
 
       // 6. URL must be a valid URL string
       if (typeof this.url !== "string" || !this.url.startsWith("http")) {
+        return false;
+      }
+
+      // 7. Title-to-slug cross validation check
+      const expectedSlug = this.title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').trim().replace(/\s+/g, '-');
+      if (expectedSlug && this.slug && expectedSlug !== this.slug) {
         return false;
       }
 

@@ -1,0 +1,2 @@
+[console_scripts]
+leetcode-auto-sync = server.app:main

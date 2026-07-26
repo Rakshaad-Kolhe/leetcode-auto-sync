@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from config import LEETCODE_REPO_PATH
-from documentation.index_generator import regenerate_root_readme
+from server.config import LEETCODE_REPO_PATH
+from server.documentation.index_generator import regenerate_root_readme
 
 
 def generate_readme(repo_root: Path | None = None) -> Path:

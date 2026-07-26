@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
-from config.config_manager import AppConfig, ConfigManager, DocumentationConfig
+from server.config.config_manager import AppConfig, ConfigManager, DocumentationConfig
 from .models import ProblemMetadata, RepositoryStatistics
 from .templates import get_template
 
@@ -29,7 +29,10 @@ class DocumentationGenerator:
         """Render the README for one problem solution folder."""
         cfg = config or self.config
         template = get_template(cfg.template)
-        return template.generate_problem_readme(metadata, solution, cfg)
+        content = template.generate_problem_readme(metadata, solution, cfg)
+        if metadata.trace_id and f"<!-- Trace ID: {metadata.trace_id} -->" not in content:
+            content = content.rstrip() + f"\n\n<!-- Trace ID: {metadata.trace_id} -->\n"
+        return content
 
     def generate_repository_readme(
         self,

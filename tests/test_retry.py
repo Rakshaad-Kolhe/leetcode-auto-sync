@@ -9,7 +9,7 @@ if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
 import pytest
-from retry import retry_with_backoff
+from server.retry import retry_with_backoff
 
 
 def test_retry_with_backoff_success_first_try():

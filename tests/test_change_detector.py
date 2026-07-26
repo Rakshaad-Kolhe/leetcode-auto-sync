@@ -7,7 +7,7 @@ SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
 if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
-from sync.change_detector import ChangeDetector
+from server.sync.change_detector import ChangeDetector
 
 
 def test_change_detector_non_existent_file(tmp_path: Path):

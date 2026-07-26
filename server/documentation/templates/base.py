@@ -5,8 +5,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Sequence
 
-from config.config_manager import DocumentationConfig
-from documentation.models import ProblemMetadata, RepositoryStatistics
+from server.config.config_manager import DocumentationConfig
+from server.documentation.models import ProblemMetadata, RepositoryStatistics
 
 
 class BaseTemplate(ABC):

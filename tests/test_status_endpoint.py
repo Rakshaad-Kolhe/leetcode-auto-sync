@@ -9,7 +9,7 @@ if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
 from fastapi.testclient import TestClient
-from app import app
+from server.app import app
 
 
 client = TestClient(app)

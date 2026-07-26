@@ -11,9 +11,9 @@ from unittest.mock import MagicMock
 SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
 sys.path.insert(0, str(SERVER_DIR))
 
-from metadata.cache import MetadataCache  # noqa: E402
-from metadata.metadata_service import MetadataService  # noqa: E402
-from metadata.models import EnrichedMetadata, TopicTag  # noqa: E402
+from server.metadata.cache import MetadataCache  # noqa: E402
+from server.metadata.metadata_service import MetadataService  # noqa: E402
+from server.metadata.models import EnrichedMetadata, TopicTag  # noqa: E402
 
 
 class MetadataServiceTests(unittest.TestCase):
