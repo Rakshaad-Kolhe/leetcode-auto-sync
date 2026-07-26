@@ -84,6 +84,7 @@
 
       // Trigger pre-scraping of problem details (difficulty, title, ID) while description tab is active
       if (window.LeetCodeAutoSync.MetadataParser) {
+        window.LeetCodeAutoSync.MetadataParser.clearCache();
         window.LeetCodeAutoSync.MetadataParser.preScrape();
       }
     } else {

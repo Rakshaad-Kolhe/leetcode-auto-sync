@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
 sys.path.insert(0, str(SERVER_DIR))
 
-from metadata.graphql_client import LeetCodeGraphQLClient  # noqa: E402
+from server.metadata.graphql_client import LeetCodeGraphQLClient  # noqa: E402
 
 
 class LeetCodeGraphQLClientTests(unittest.TestCase):

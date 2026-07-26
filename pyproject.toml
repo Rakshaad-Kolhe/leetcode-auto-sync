@@ -32,3 +32,8 @@ leetcode-auto-sync = "server.app:main"
 where = ["."]
 include = ["server*"]
 exclude = ["tests*", "extension*", "benchmarks*", "scripts*", "dist*"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+

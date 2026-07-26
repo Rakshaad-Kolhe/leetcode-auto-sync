@@ -10,8 +10,8 @@ if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
 import pytest
-from schemas import Submission
-from sync.sync_engine import SyncEngine
+from server.schemas import Submission
+from server.sync.sync_engine import SyncEngine
 
 
 @pytest.fixture

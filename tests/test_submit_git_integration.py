@@ -13,11 +13,11 @@ from unittest.mock import patch
 SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
 sys.path.insert(0, str(SERVER_DIR))
 
-import repository_writer  # noqa: E402
-import root_readme  # noqa: E402
-import submit_service  # noqa: E402
-from git_service import GitService  # noqa: E402
-from schemas import Submission  # noqa: E402
+import server.repository_writer as repository_writer  # noqa: E402
+import server.root_readme as root_readme  # noqa: E402
+import server.submit_service as submit_service  # noqa: E402
+from server.git_service import GitService, DetachedHeadError  # noqa: E402
+from server.schemas import Submission  # noqa: E402
 
 
 class SubmitGitIntegrationTests(unittest.TestCase):
@@ -34,7 +34,8 @@ class SubmitGitIntegrationTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "created")
         self.assertEqual(result["problem"], {"id": 49, "title": "Group Anagrams"})
-        self.assertEqual(message, "Add 0049 - Group Anagrams")
+        self.assertTrue(message.startswith("Add 0049 - Group Anagrams"))
+        self.assertIn("Trace:", message)
         self.assertEqual(result["git"]["branch"], branch)
         self.assertTrue(result["git"]["commit"])
         self.assertFalse(result["git"]["pushed"])
@@ -48,7 +49,8 @@ class SubmitGitIntegrationTests(unittest.TestCase):
             message = self._git(repo, "log", "-1", "--pretty=%s").stdout.strip()
 
         self.assertEqual(result["status"], "updated")
-        self.assertEqual(message, "Update 0049 - Group Anagrams")
+        self.assertTrue(message.startswith("Update 0049 - Group Anagrams"))
+        self.assertIn("Trace:", message)
         self.assertFalse(result["git"]["pushed"])
 
     def test_no_changes_returns_top_level_no_changes(self) -> None:
@@ -61,19 +63,16 @@ class SubmitGitIntegrationTests(unittest.TestCase):
 
         self.assertEqual(result, {"status": "no_changes"})
 
-    def test_git_failure_preserves_generated_files_and_returns_error(self) -> None:
+    def test_git_failure_aborts_before_file_writes_on_detached_head(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._init_repo(Path(tmp))
             self._git(repo, "checkout", "--detach")
 
-            result = self._process(repo, self._submission(code="print('new')\n"))
-            solution_path = repo / "Medium" / "0049-Group Anagrams" / "solution.py"
-            solution_exists = solution_path.exists()
+            with self.assertRaises(DetachedHeadError):
+                self._process(repo, self._submission(code="print('new')\n"))
 
-        self.assertEqual(result["status"], "created")
-        self.assertEqual(result["git"]["status"], "error")
-        self.assertEqual(result["git"]["error"]["code"], "detached_head")
-        self.assertTrue(solution_exists)
+            solution_path = repo / "Medium" / "0049-Group Anagrams" / "solution.py"
+            self.assertFalse(solution_path.exists())
 
     def _process(self, repo: Path, submission: Submission) -> dict[str, object]:
         with (

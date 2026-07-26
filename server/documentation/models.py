@@ -26,6 +26,7 @@ class ProblemMetadata:
     dislikes: Optional[int] = None
     hints: List[str] = field(default_factory=list)
     similar_questions: List[Dict[str, str]] = field(default_factory=list)
+    trace_id: Optional[str] = None
     extra: Dict[str, Any] = field(default_factory=dict)
 
 

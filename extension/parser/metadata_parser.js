@@ -88,7 +88,23 @@
     return clean;
   }
 
+  /**
+   * Converts a raw problem title to its expected URL slug.
+   * @param {string} title
+   * @returns {string}
+   */
+  function titleToSlug(title) {
+    return title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-');
+  }
+
   function extractTitleAndIdDirect() {
+    const currentUrl = PageContext.getCurrentUrl();
+    const currentSlug = PageContext.getProblemSlug(currentUrl);
+
     for (const selector of SELECTORS.QUESTION_TITLE) {
       const elements = document.querySelectorAll(selector);
       for (const element of elements) {
@@ -98,10 +114,16 @@
         // Matches numeric ID prefix, e.g. "49. Group Anagrams"
         const match = text.match(/^(\d+)\.\s*(.+)$/);
         if (match) {
-          return {
-            id: parseInt(match[1], 10),
-            title: match[2].trim()
-          };
+          const id = parseInt(match[1], 10);
+          const title = match[2].trim();
+          const domSlug = titleToSlug(title);
+
+          if (currentSlug && domSlug && domSlug !== currentSlug) {
+            Logger.warn(`MetadataParser: DOM title "${title}" (slug "${domSlug}") disagrees with URL slug "${currentSlug}". Rejecting stale DOM element.`);
+            continue;
+          }
+
+          return { id, title };
         }
       }
     }
@@ -184,11 +206,21 @@
    *   3. Text-content scan of all buttons/role=button (handles UI changes)
    * @returns {string|null}
    */
+  /**
+   * Extracts the selected programming language from the editor UI.
+   * Uses three tiers:
+   *   1. Cached value (survives navigation away from editor if for same slug)
+   *   2. Attribute-based selectors (stable data-cy / id patterns)
+   *   3. Text-content scan of all buttons/role=button (handles UI changes)
+   * @returns {string|null}
+   */
   function extractLanguage() {
-    // Tier 1: Return cached value if available.
-    // The language picker disappears on submission detail pages.
-    if (cachedLanguage) {
-      Logger.info(`MetadataParser: Using cached language "${cachedLanguage}"`);
+    const currentUrl = PageContext.getCurrentUrl();
+    const currentSlug = PageContext.getProblemSlug(currentUrl);
+
+    // Tier 1: Return cached value if available and bound to current slug.
+    if (cachedSlug === currentSlug && cachedLanguage) {
+      Logger.info(`MetadataParser: Using cached language "${cachedLanguage}" for slug "${currentSlug}"`);
       return cachedLanguage;
     }
 
@@ -201,21 +233,13 @@
         if (text) {
           const lang = normalizeLanguage(text);
           cachedLanguage = lang;
+          cachedSlug = currentSlug;
           return lang;
         }
       }
     }
 
     // Tier 3: Broad text-content scan.
-    // LeetCode renders the language picker as a plain button showing the display name
-    // (e.g. "Python3", "C++", "Java"). Scan all buttons for a known language token.
-    //
-    // Sorted longest-first so "python3" is tested before "python", "javascript"
-    // before "java", etc., avoiding shorter-prefix false matches.
-    //
-    // startsWith guard: after the matched prefix the next character must be
-    // non-alphanumeric (end-of-string, a space, a chevron icon, etc.).
-    // This prevents "chooseatype".startsWith("c") from matching.
     const knownLangs = [
       'javascript', 'typescript', 'python3', 'python', 'elixir', 'erlang',
       'kotlin', 'racket', 'scala', 'swift', 'dart', 'java', 'rust', 'php',
@@ -224,19 +248,18 @@
     const buttonCandidates = document.querySelectorAll('button, [role="button"], [role="combobox"], [role="option"]');
     for (const el of buttonCandidates) {
       const raw = el.textContent.trim();
-      if (!raw || raw.length > 40) continue; // Skip empty or long composite labels
+      if (!raw || raw.length > 40) continue;
       const clean = raw.toLowerCase().replace(/\s+/g, '');
       for (const lang of knownLangs) {
         const normalLang = lang.replace(/\s+/g, '');
         const isExact = clean === normalLang;
         const isPrefix = clean.startsWith(normalLang) &&
-          // The character immediately after the matched prefix must NOT be alphanumeric.
-          // This prevents "chooseatype" from matching the single-letter lang "c".
           !/[a-z0-9]/.test(clean[normalLang.length] || '');
         if (isExact || isPrefix) {
           Logger.info(`MetadataParser: extractLanguage tier-3 text scan matched "${raw}" for lang "${lang}"`);
           const normalized = normalizeLanguage(raw);
           cachedLanguage = normalized;
+          cachedSlug = currentSlug;
           return normalized;
         }
       }
@@ -260,8 +283,20 @@
     clearCache,
 
     /**
-     * Scrapes the page DOM for metadata atomically.
-     * @returns {Object|null} Semi-parsed metadata properties, or null on total parse failure.
+     * Clears all in-memory parser caches.
+     */
+    clearCache() {
+      cachedDifficulty = null;
+      cachedTitleAndId = null;
+      cachedSlug = null;
+      cachedLanguage = null;
+      Logger.info("MetadataParser: In-memory metadata caches cleared.");
+    },
+
+    /**
+     * Scrapes the page DOM for metadata and returns an immutable MetadataSnapshot.
+     * @returns {MetadataSnapshot|null} Atomic frozen snapshot or null on parse failure.
+
      */
     parse() {
       try {
@@ -276,33 +311,51 @@
         const titleAndId = extractTitleAndId();
         const difficulty = extractDifficulty();
         const language = extractLanguage();
+        const url = PageContext.getCurrentUrl();
+        const slug = PageContext.getProblemSlug(url);
+        const ObserverObj = LeetCodeAutoSync.Observer;
+        const navVersion = ObserverObj && typeof ObserverObj.getNavigationVersion === "function"
+          ? ObserverObj.getNavigationVersion()
+          : 0;
+
 
         if (!titleAndId) {
           Logger.warn("Parser: Failed to extract Problem Title and ID");
           return null;
         }
 
-        // Cross-validation: Check if title and slug align
-        const normalizedTitle = titleAndId.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-        if (slug && normalizedTitle && !slug.includes(normalizedTitle) && !normalizedTitle.includes(slug)) {
-          Logger.warn(`Parser: Cross-validation warning: title "${titleAndId.title}" does not align with URL slug "${slug}". Re-extracting directly...`);
-          const direct = extractTitleAndIdDirect();
-          if (direct && direct.title !== titleAndId.title) {
-            titleAndId.id = direct.id;
-            titleAndId.title = direct.title;
-          }
+        if (!slug) {
+          Logger.warn("Parser: Failed to extract problem slug from URL:", url);
+          return null;
+        }
+
+        const SnapshotClass = LeetCodeAutoSync.MetadataSnapshot;
+        if (SnapshotClass) {
+          const snapshot = new SnapshotClass({
+            id: titleAndId.id,
+            title: titleAndId.title,
+            slug: slug,
+            difficulty: difficulty,
+            language: language,
+            url: url,
+            navVersion: navVersion
+          });
+          Logger.info(`Parser: Created frozen MetadataSnapshot [${snapshot.snapshotId}] (navVersion=${navVersion}):`, snapshot);
+          return snapshot;
+
         }
 
         return {
           id: titleAndId.id,
           title: titleAndId.title,
-          slug: slug || "",
+          slug: slug,
           difficulty: difficulty,
           language: language,
-          url: url
+          url: url,
+          navVersion: navVersion
         };
       } catch (err) {
-        Logger.error("Parser: Exception during DOM parsing:", err);
+        Logger.error("Parser: Exception during DOM parsing or snapshot creation:", err);
         return null;
       }
     },
@@ -317,7 +370,12 @@
       try {
         const currentUrl = PageContext.getCurrentUrl();
         const currentSlug = PageContext.getProblemSlug(currentUrl);
-        Logger.info(`MetadataParser: Running preScrape() for slug: "${currentSlug}"`);
+        const ObserverObj = LeetCodeAutoSync.Observer;
+        const startNavVersion = ObserverObj && typeof ObserverObj.getNavigationVersion === "function"
+          ? ObserverObj.getNavigationVersion()
+          : 0;
+
+        Logger.info(`MetadataParser: Running preScrape() for slug: "${currentSlug}" [nav_version=${startNavVersion}]`);
 
         // Reset cache if slug has changed
         if (cachedSlug !== currentSlug) {
@@ -348,6 +406,14 @@
         // Staggered timeouts to capture late-loaded elements
         [200, 500, 1000, 2000, 4000].forEach((delay) => {
           setTimeout(() => {
+            const nowNavVersion = ObserverObj && typeof ObserverObj.getNavigationVersion === "function"
+              ? ObserverObj.getNavigationVersion()
+              : 0;
+            if (startNavVersion > 0 && nowNavVersion !== startNavVersion) {
+              Logger.info(`MetadataParser: Ignoring preScrape timeout (${delay}ms) from past nav_version ${startNavVersion} (current: ${nowNavVersion})`);
+              return;
+            }
+
             const nowUrl = PageContext.getCurrentUrl();
             const nowSlug = PageContext.getProblemSlug(nowUrl);
             if (nowSlug !== currentSlug) return; // Navigated away, ignore

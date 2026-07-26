@@ -7,7 +7,7 @@ SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
 if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
-from diagnostics import generate_diagnostics_bundle, sanitize_config
+from server.diagnostics import generate_diagnostics_bundle, sanitize_config
 
 
 def test_sanitize_config_masks_sensitive_tokens():

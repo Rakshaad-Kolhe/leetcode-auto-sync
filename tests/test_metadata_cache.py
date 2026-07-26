@@ -10,8 +10,8 @@ from pathlib import Path
 SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
 sys.path.insert(0, str(SERVER_DIR))
 
-from metadata.cache import MetadataCache  # noqa: E402
-from metadata.models import CompanyTag, EnrichedMetadata, TopicTag  # noqa: E402
+from server.metadata.cache import MetadataCache  # noqa: E402
+from server.metadata.models import CompanyTag, EnrichedMetadata, TopicTag  # noqa: E402
 
 
 class MetadataCacheTests(unittest.TestCase):

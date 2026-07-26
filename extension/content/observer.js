@@ -7,7 +7,8 @@
   const LeetCodeAutoSync = global.LeetCodeAutoSync || {};
   const { Logger } = LeetCodeAutoSync;
 
-  let lastUrl = typeof window !== "undefined" ? window.location.href : "";
+  let lastUrl = window.location.href;
+
   let navigationVersion = 1;
   const callbacks = [];
 
@@ -22,19 +23,14 @@
   /**
    * Fires all registered page change callbacks and invalidates caches.
    * @param {string} newUrl - The new URL.
+   * @param {number} version - Current navigation version token.
    */
-  function notifyChange(newUrl) {
-    navigationVersion++;
-    Logger.info(`[SPA_NAVIGATION] Navigation detected (v${navigationVersion}) to:`, newUrl);
-
-    // Invalidate stale caches if metadata service exposes reset/clear
-    if (LeetCodeAutoSync.MetadataService && typeof LeetCodeAutoSync.MetadataService.clearCache === "function") {
-      LeetCodeAutoSync.MetadataService.clearCache();
-    }
-
+  function notifyChange(newUrl, version) {
+    Logger.info(`Navigation detected to: ${newUrl} [nav_version=${version}]`);
     callbacks.forEach((callback) => {
       try {
-        callback(newUrl, navigationVersion);
+        callback(newUrl, version);
+
       } catch (err) {
         Logger.error("Error in onPageChanged callback:", err);
       }
@@ -49,7 +45,8 @@
     const currentUrl = window.location.href;
     if (currentUrl !== lastUrl) {
       lastUrl = currentUrl;
-      notifyChange(currentUrl);
+      navigationVersion++;
+      notifyChange(currentUrl, navigationVersion);
     }
   }
 
@@ -61,6 +58,14 @@
     if (typeof callback === "function") {
       callbacks.push(callback);
     }
+  }
+
+  /**
+   * Returns current navigation version.
+   * @returns {number}
+   */
+  function getNavigationVersion() {
+    return navigationVersion;
   }
 
   /**
@@ -121,8 +126,7 @@
 
   LeetCodeAutoSync.Observer = {
     onPageChanged,
-    getNavigationVersion,
-    checkUrlChange
+    getNavigationVersion
   };
 
   global.LeetCodeAutoSync = LeetCodeAutoSync;

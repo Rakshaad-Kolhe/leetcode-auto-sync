@@ -7,7 +7,7 @@ SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
 if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
-from sync.snapshot import TransactionSnapshot
+from server.sync.snapshot import TransactionSnapshot
 
 
 def test_snapshot_rollback_existing_file_restored(tmp_path: Path):

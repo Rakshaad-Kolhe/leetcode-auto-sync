@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
-from config.config_manager import DocumentationConfig
+from server.config.config_manager import DocumentationConfig
 from ..badges import (
     difficulty_indicator,
     difficulty_shields_badge,

@@ -10,7 +10,7 @@ from pathlib import Path
 SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
 sys.path.insert(0, str(SERVER_DIR))
 
-from root_readme import generate_readme  # noqa: E402
+from server.root_readme import generate_readme  # noqa: E402
 
 
 class RootReadmeGenerationTests(unittest.TestCase):

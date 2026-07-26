@@ -66,5 +66,34 @@
     STATUS: "http://localhost:5000/api/status"
   });
 
+  /**
+   * Generates a unique Trace ID for end-to-end synchronization tracking.
+   * Format: SYNC-YYYYMMDD-xxxxxxxx
+   * @returns {string}
+   */
+  LeetCodeAutoSync.generateTraceId = function() {
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+    const randHex = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    return `SYNC-${dateStr}-${randHex}`;
+  };
+
+  /**
+   * Generates a unique Metadata Snapshot ID for tracking atomic snapshots.
+   * Format: SNAP-YYYYMMDD-xxxxxxxx
+   * @returns {string}
+   */
+  LeetCodeAutoSync.generateSnapshotId = function() {
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+    const randHex = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    return `SNAP-${dateStr}-${randHex}`;
+  };
+
   global.LeetCodeAutoSync = LeetCodeAutoSync;
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+

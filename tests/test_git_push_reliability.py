@@ -6,12 +6,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
-if str(SERVER_DIR) not in sys.path:
-    sys.path.insert(0, str(SERVER_DIR))
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 import pytest
-from git_service import (
+from server.git_service import (
+
     GitService,
     GitNotInstalledError,
     InvalidRepositoryError,
@@ -21,6 +22,8 @@ from git_service import (
     MissingRemoteError,
     RemoteAheadError,
     BranchDivergedError,
+    RepositoryDivergedError,
+
     MergeConflictError,
     AuthenticationError,
 )
@@ -69,7 +72,8 @@ def test_git_push_reliability_ahead_only(git_remote_and_local: dict):
     assert push_res["local_head"] == push_res["remote_head"]
 
 
-def test_git_push_reliability_remote_ahead_auto_rebase(git_remote_and_local: dict, tmp_path: Path):
+def test_git_push_reliability_remote_behind_only_fast_forward(git_remote_and_local: dict, tmp_path: Path):
+
     remote_dir = git_remote_and_local["remote"]
     local_dir = git_remote_and_local["local"]
 
@@ -84,19 +88,13 @@ def test_git_push_reliability_remote_ahead_auto_rebase(git_remote_and_local: dic
     subprocess.run(["git", "commit", "-m", "Remote commit"], cwd=other_dir, check=True, capture_output=True)
     subprocess.run(["git", "push", "origin", "main"], cwd=other_dir, check=True, capture_output=True)
 
-    (local_dir / "local_change.txt").write_text("Local edit", encoding="utf-8")
-    subprocess.run(["git", "add", "."], cwd=local_dir, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "Local commit"], cwd=local_dir, check=True, capture_output=True)
-
-    git_srv = GitService(repo_path=local_dir, auto_push=True, auto_rebase=True)
-
-    push_res = git_srv.push_changes("main")
-    assert push_res["pushed"] is True
+    git_srv = GitService(repo_path=local_dir, auto_push=True)
+    git_srv.fast_forward_pull("origin", "main")
     assert (local_dir / "remote_change.txt").exists()
-    assert (local_dir / "local_change.txt").exists()
 
 
-def test_git_push_reliability_branch_diverged_raises_without_auto_rebase(git_remote_and_local: dict, tmp_path: Path):
+def test_git_push_reliability_branch_diverged_raises_error(git_remote_and_local: dict, tmp_path: Path):
+
     remote_dir = git_remote_and_local["remote"]
     local_dir = git_remote_and_local["local"]
 
@@ -115,7 +113,8 @@ def test_git_push_reliability_branch_diverged_raises_without_auto_rebase(git_rem
     subprocess.run(["git", "add", "."], cwd=local_dir, check=True, capture_output=True)
     subprocess.run(["git", "commit", "-m", "Local commit"], cwd=local_dir, check=True, capture_output=True)
 
-    git_srv = GitService(repo_path=local_dir, auto_push=True, auto_rebase=False)
+    git_srv = GitService(repo_path=local_dir, auto_push=True)
 
-    with pytest.raises((BranchDivergedError, RemoteAheadError, PushFailedError)):
+    with pytest.raises((RepositoryDivergedError, BranchDivergedError, RemoteAheadError, PushFailedError)):
+
         git_srv.push_changes("main")

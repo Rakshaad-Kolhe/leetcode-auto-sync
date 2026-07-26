@@ -9,11 +9,44 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from config import AUTO_PUSH, DEFAULT_BRANCH, LEETCODE_REPO_PATH, REMOTE_NAME
-from config.config_manager import AppConfig, ConfigManager, GitConfig
-from retry import retry_with_backoff
+from server.config import AUTO_PUSH, DEFAULT_BRANCH, LEETCODE_REPO_PATH, REMOTE_NAME
+from server.config.config_manager import AppConfig, ConfigManager, GitConfig
+from server.retry import retry_with_backoff
 
 logger = logging.getLogger(__name__)
+
+
+from dataclasses import dataclass
+from enum import Enum
+
+
+class RepositoryStatus(str, Enum):
+    """Enum representing Git repository state status."""
+
+    CLEAN = "CLEAN"
+    AHEAD = "AHEAD"
+    BEHIND = "BEHIND"
+    DIVERGED = "DIVERGED"
+    DIRTY = "DIRTY"
+    DETACHED_HEAD = "DETACHED_HEAD"
+    NOT_GIT_REPOSITORY = "NOT_GIT_REPOSITORY"
+
+
+@dataclass(frozen=True)
+class GitRepositoryState:
+    """Immutable snapshot of Git repository health and branch state."""
+
+    status: RepositoryStatus
+    branch: str
+    local_head: str
+    remote_head: str
+    ahead: int
+    behind: int
+
+    @property
+    def is_safe(self) -> bool:
+        """Return True if repository is in a safe state for sync operations."""
+        return self.status in (RepositoryStatus.CLEAN, RepositoryStatus.AHEAD, RepositoryStatus.BEHIND)
 
 
 class SafeDict(dict):
@@ -27,6 +60,7 @@ class GitServiceError(Exception):
     """Base class for expected Git service failures."""
 
     code = "git_error"
+    retryable = True
 
     def __init__(self, message: str) -> None:
         super().__init__(message)
@@ -41,36 +75,105 @@ class GitNotInstalledError(GitServiceError):
     """Raised when the Git executable cannot be found."""
 
     code = "git_not_installed"
+    retryable = False
 
 
 class InvalidRepositoryError(GitServiceError):
     """Raised when the configured path is not a Git repository."""
 
     code = "invalid_repository"
+    retryable = False
+
+
+class RepositoryValidationError(InvalidRepositoryError):
+    """Raised when repository validation checks fail."""
+
+    code = "repository_validation_failed"
+    retryable = False
 
 
 class DetachedHeadError(GitServiceError):
     """Raised when the repository is in detached HEAD state."""
 
     code = "detached_head"
+    retryable = False
+
+
+class DirtyWorkingTreeError(GitServiceError):
+    """Raised when the repository contains uncommitted changes."""
+
+    code = "dirty_working_tree"
+    retryable = False
+
+
+class RepositoryDivergedError(GitServiceError):
+    """Raised when local and remote repository histories have diverged."""
+
+    code = "repository_diverged"
+    retryable = False
+
+
+class BranchDivergedError(RepositoryDivergedError):
+    """Raised when local and remote branches contain unique commits."""
+
+    code = "branch_diverged"
+    retryable = False
+
+
+class FastForwardFailedError(GitServiceError):
+    """Raised when git pull --ff-only cannot be performed."""
+
+    code = "fast_forward_failed"
+    retryable = False
+
+
+class MergeConflictError(GitServiceError):
+    """Raised when automatic merge or rebase encounters conflicts."""
+
+    code = "merge_conflict"
+    retryable = False
 
 
 class PushFailedError(GitServiceError):
     """Raised when Git push fails."""
 
     code = "push_failed"
+    retryable = True
 
 
 class CommitFailedError(GitServiceError):
     """Raised when Git commit fails."""
 
     code = "commit_failed"
+    retryable = False
 
 
 class MissingRemoteError(GitServiceError):
     """Raised when the configured remote is missing."""
 
     code = "missing_remote"
+    retryable = False
+
+
+class RemoteAheadError(GitServiceError):
+    """Raised when remote branch has newer commits not present locally."""
+
+    code = "remote_ahead"
+    retryable = False
+
+
+class AuthenticationError(GitServiceError):
+    """Raised when Git authentication / credentials fail."""
+
+    code = "authentication_failed"
+    retryable = True
+
+
+class NetworkError(GitServiceError):
+    """Raised when Git operation fails due to network connectivity issues."""
+
+    code = "network_error"
+    retryable = True
 
 
 class RemoteAheadError(GitServiceError):
@@ -270,68 +373,154 @@ class GitService:
                 raise AuthenticationError(f"Git authentication failed for remote '{target_remote}'.") from exc
             raise PushFailedError(f"Git fetch failed for remote '{target_remote}': {exc.message}") from exc
 
+    def analyze_repository(self, remote: str | None = None, branch: str | None = None) -> GitRepositoryState:
+        """Perform comprehensive Git repository state and health analysis."""
+        target_remote = remote or self.remote_name
+
+        # 1. Check git installation & repository validity
+        try:
+            self.verify_repository()
+        except InvalidRepositoryError:
+            return GitRepositoryState(
+                status=RepositoryStatus.NOT_GIT_REPOSITORY,
+                branch="unknown",
+                local_head="none",
+                remote_head="none",
+                ahead=0,
+                behind=0,
+            )
+
+        # 2. Check for detached HEAD
+        try:
+            branch_info = self.get_current_branch()
+            target_branch = branch or branch_info["branch"]
+        except DetachedHeadError:
+            local_head = self._get_head_sha()
+            return GitRepositoryState(
+                status=RepositoryStatus.DETACHED_HEAD,
+                branch="HEAD (detached)",
+                local_head=local_head,
+                remote_head="none",
+                ahead=0,
+                behind=0,
+            )
+
+        # 3. Check dirty working tree
+        status_info = self.get_status()
+        is_dirty = not status_info["clean"]
+        local_head = self._get_head_sha()
+
+        # 4. Fetch remote
+        logger.info("[EVENT:FETCH_STARTED]", extra={"remote": target_remote})
+        try:
+            self.fetch_remote(target_remote)
+            logger.info("[EVENT:FETCH_COMPLETED]", extra={"remote": target_remote})
+        except (AuthenticationError, PushFailedError, GitServiceError) as exc:
+            msg = str(exc).lower()
+            if "network" in msg or "could not resolve host" in msg or "connection refused" in msg:
+                raise NetworkError(f"Network error during fetch from remote '{target_remote}': {exc}") from exc
+            if is_dirty:
+                return GitRepositoryState(
+                    status=RepositoryStatus.DIRTY,
+                    branch=target_branch,
+                    local_head=local_head,
+                    remote_head="none",
+                    ahead=0,
+                    behind=0,
+                )
+
+        # 5. Evaluate ahead/behind count vs remote ref
+        remote_ref = f"{target_remote}/{target_branch}"
+        try:
+            remote_head = self._run(["rev-parse", "--short", remote_ref]).stdout.strip()
+            ahead = int(self._run(["rev-list", "--count", f"{remote_ref}..HEAD"]).stdout.strip() or "0")
+            behind = int(self._run(["rev-list", "--count", f"HEAD..{remote_ref}"]).stdout.strip() or "0")
+        except GitServiceError:
+            remote_head = "none"
+            ahead = 1
+            behind = 0
+
+        # 6. Determine final status
+        if is_dirty:
+            rep_status = RepositoryStatus.DIRTY
+        elif ahead == 0 and behind == 0:
+            rep_status = RepositoryStatus.CLEAN
+        elif ahead > 0 and behind == 0:
+            rep_status = RepositoryStatus.AHEAD
+        elif ahead == 0 and behind > 0:
+            rep_status = RepositoryStatus.BEHIND
+        else:
+            rep_status = RepositoryStatus.DIVERGED
+
+        repo_state = GitRepositoryState(
+            status=rep_status,
+            branch=target_branch,
+            local_head=local_head,
+            remote_head=remote_head,
+            ahead=ahead,
+            behind=behind,
+        )
+        logger.info(
+            "[EVENT:REPOSITORY_ANALYZED]",
+            extra={
+                "status": repo_state.status.value,
+                "branch": repo_state.branch,
+                "ahead": repo_state.ahead,
+                "behind": repo_state.behind,
+            },
+        )
+        return repo_state
+
+    def _get_head_sha(self) -> str:
+        try:
+            return self._run(["rev-parse", "--short", "HEAD"]).stdout.strip()
+        except GitServiceError:
+            return "none"
+
     def get_branch_status(self, remote: str | None = None, branch: str | None = None) -> Dict[str, Any]:
         """Inspect branch status relative to remote branch (ahead/behind/diverged)."""
+        state = self.analyze_repository(remote=remote, branch=branch)
+        state_str = "CLEAN"
+        if state.status == RepositoryStatus.AHEAD:
+            state_str = "AHEAD_ONLY"
+        elif state.status == RepositoryStatus.BEHIND:
+            state_str = "BEHIND_ONLY"
+        elif state.status == RepositoryStatus.DIVERGED:
+            state_str = "DIVERGED"
+        elif state.status == RepositoryStatus.DIRTY:
+            state_str = "DIRTY"
+
+        can_push = state.status in (RepositoryStatus.CLEAN, RepositoryStatus.AHEAD)
+        return {
+            "local_head": state.local_head,
+            "remote_head": state.remote_head,
+            "ahead_count": state.ahead,
+            "behind_count": state.behind,
+            "state": state_str,
+            "can_push": can_push,
+        }
+
+    def fast_forward_pull(self, remote: str | None = None, branch: str | None = None) -> None:
+        """Execute fast-forward only pull from remote branch."""
         self._ensure_git_installed()
         target_remote = remote or self.remote_name
         target_branch = branch or self.get_current_branch()["branch"]
 
-        local_head = self._run(["rev-parse", "HEAD"]).stdout.strip()
-
-        # Try to resolve remote ref
-        remote_ref = f"{target_remote}/{target_branch}"
+        logger.info(f"[EVENT:FAST_FORWARD_STARTED] Pulling --ff-only from '{target_remote}/{target_branch}'...")
         try:
-            remote_head = self._run(["rev-parse", remote_ref]).stdout.strip()
-        except GitServiceError:
-            return {
-                "local_head": local_head,
-                "remote_head": "none",
-                "ahead_count": 1,
-                "behind_count": 0,
-                "state": "MISSING_UPSTREAM",
-                "can_push": True,
-            }
-
-        ahead = int(self._run(["rev-list", "--count", f"{remote_ref}..HEAD"]).stdout.strip() or "0")
-        behind = int(self._run(["rev-list", "--count", f"HEAD..{remote_ref}"]).stdout.strip() or "0")
-
-        if ahead == 0 and behind == 0:
-            state = "CLEAN"
-        elif ahead > 0 and behind == 0:
-            state = "AHEAD_ONLY"
-        elif ahead == 0 and behind > 0:
-            state = "BEHIND_ONLY"
-        else:
-            state = "DIVERGED"
-
-        can_push = state in ("CLEAN", "AHEAD_ONLY", "MISSING_UPSTREAM")
-        return {
-            "local_head": local_head,
-            "remote_head": remote_head,
-            "ahead_count": ahead,
-            "behind_count": behind,
-            "state": state,
-            "can_push": can_push,
-        }
+            self._run(["pull", "--ff-only", target_remote, target_branch])
+            logger.info(f"[EVENT:FAST_FORWARD_COMPLETED] Fast-forward pull from '{target_remote}/{target_branch}' succeeded.")
+        except GitServiceError as exc:
+            logger.error(f"[GIT] Fast-forward pull failed: {exc.message}")
+            raise FastForwardFailedError(
+                f"Fast-forward pull from '{target_remote}/{target_branch}' failed. Remote history is non-fast-forwardable."
+            ) from exc
 
     def rebase_from_upstream(self, remote: str | None = None, branch: str | None = None) -> None:
-        """Attempt safe rebase from remote branch, rolling back cleanly if conflicts occur."""
-        target_remote = remote or self.remote_name
-        target_branch = branch or self.get_current_branch()["branch"]
+        """Deprecated: Fast-forward pull replacement to prevent history rewriting."""
+        logger.warning("[GIT] rebase_from_upstream is deprecated. Performing fast_forward_pull instead.")
+        self.fast_forward_pull(remote=remote, branch=branch)
 
-        logger.info(f"[GIT] Attempting safe pull --rebase from '{target_remote}/{target_branch}'...")
-        try:
-            self._run(["pull", "--rebase", target_remote, target_branch])
-            logger.info("[GIT] Automatic rebase completed successfully.")
-        except GitServiceError as exc:
-            logger.warning(f"[GIT] Rebase encountered conflicts: {exc.message}. Rolling back via git rebase --abort...")
-            try:
-                self._run(["rebase", "--abort"])
-            except GitServiceError:
-                pass
-            raise MergeConflictError(
-                f"Automatic rebase failed with merge conflicts on '{target_branch}'. Safe rollback executed."
-            ) from exc
 
     @retry_with_backoff(max_retries=3, initial_delay=0.1, exceptions=(PushFailedError, GitServiceError))
     def push_changes(self, branch: str | None = None) -> Dict[str, Any]:
@@ -340,31 +529,26 @@ class GitService:
         target_branch = branch or self.get_current_branch()["branch"]
         self._verify_remote()
 
-        # Step 1: Fetch remote
-        self.fetch_remote()
+        # Step 1: Fetch and analyze repository state
+        logger.info("[EVENT:PUSH_STARTED]", extra={"remote": self.remote_name, "branch": target_branch})
+        state = self.analyze_repository(remote=self.remote_name, branch=target_branch)
 
-        # Step 2: Compare branch state
-        b_status = self.get_branch_status(branch=target_branch)
+        if state.status == RepositoryStatus.DIRTY:
+            logger.error("[EVENT:SYNC_ABORTED_DIRTY_WORKTREE]")
+            raise DirtyWorkingTreeError(f"Repository contains uncommitted working tree changes on branch '{target_branch}'.")
+        if state.status == RepositoryStatus.DETACHED_HEAD:
+            logger.error("[EVENT:SYNC_ABORTED_DETACHED_HEAD]")
+            raise DetachedHeadError("Repository is in detached HEAD state.")
+        if state.status == RepositoryStatus.DIVERGED:
+            logger.error("[EVENT:SYNC_ABORTED_REPOSITORY_DIVERGED]")
+            raise RepositoryDivergedError(
+                f"Local and remote branch '{target_branch}' have diverged (ahead: {state.ahead}, behind: {state.behind}). Synchronization aborted."
+            )
+        if state.status == RepositoryStatus.BEHIND:
+            self.fast_forward_pull(remote=self.remote_name, branch=target_branch)
+            state = self.analyze_repository(remote=self.remote_name, branch=target_branch)
 
-        if not b_status["can_push"]:
-            if b_status["state"] == "BEHIND_ONLY":
-                if self.auto_rebase:
-                    self.rebase_from_upstream(branch=target_branch)
-                    b_status = self.get_branch_status(branch=target_branch)
-                else:
-                    raise RemoteAheadError(
-                        f"Remote branch '{target_branch}' is ahead by {b_status['behind_count']} commits. Pull/rebase required."
-                    )
-            elif b_status["state"] == "DIVERGED":
-                if self.auto_rebase:
-                    self.rebase_from_upstream(branch=target_branch)
-                    b_status = self.get_branch_status(branch=target_branch)
-                else:
-                    raise BranchDivergedError(
-                        f"Local and remote branch '{target_branch}' have diverged. Safe rebase required."
-                    )
-
-        # Step 3: Execute Push
+        # Step 2: Execute Push
         try:
             self._run(["push", self.remote_name, target_branch])
         except GitServiceError as exc:
@@ -373,7 +557,8 @@ class GitService:
                 raise AuthenticationError(f"Git authentication failed for push to remote '{self.remote_name}'.") from exc
             raise PushFailedError(f"Git push to remote '{self.remote_name}' failed: {exc.message}") from exc
 
-        # Step 4: Post-Push Remote Verification (Confirm remote SHA matches local HEAD)
+        # Step 3: Post-Push Remote Verification (Confirm remote SHA matches local HEAD)
+
         self.fetch_remote()
         post_status = self.get_branch_status(branch=target_branch)
         if post_status["ahead_count"] > 0:
@@ -381,7 +566,7 @@ class GitService:
                 f"Push verification failed: local branch is still {post_status['ahead_count']} commits ahead of remote after push."
             )
 
-        logger.info("git_push_completed", extra={"remote": self.remote_name, "branch": target_branch})
+        logger.info("[EVENT:PUSH_COMPLETED]", extra={"remote": self.remote_name, "branch": target_branch})
         return {
             "pushed": True,
             "remote": self.remote_name,
@@ -392,62 +577,24 @@ class GitService:
         }
 
     def verify_git_identity(self) -> Dict[str, Any]:
-        """Verify git user.name and user.email with local -> global fallback & placeholder detection."""
+        """Verify git user.name and user.email configuration for identity attribution."""
         self._ensure_git_installed()
-
-        # Priority 1: Repository-local config
         try:
-            local_name = self._run(["config", "user.name"]).stdout.strip()
+            name = self._run(["config", "user.name"]).stdout.strip()
         except GitServiceError:
-            local_name = ""
+            name = ""
 
         try:
-            local_email = self._run(["config", "user.email"]).stdout.strip()
+            email = self._run(["config", "user.email"]).stdout.strip()
         except GitServiceError:
-            local_email = ""
+            email = ""
 
-        # Priority 2: Global config fallback
-        try:
-            global_name = self._run(["config", "--global", "user.name"]).stdout.strip()
-        except GitServiceError:
-            global_name = ""
-
-        try:
-            global_email = self._run(["config", "--global", "user.email"]).stdout.strip()
-        except GitServiceError:
-            global_email = ""
-
-        resolved_name = local_name or global_name
-        resolved_email = local_email or global_email
-
-        name_source = "repository" if local_name else ("global" if global_name else "none")
-        email_source = "repository" if local_email else ("global" if global_email else "none")
-
-        reasons = []
-        is_placeholder = False
-
-        if not resolved_name or not resolved_email:
-            reasons.append("Git identity is unconfigured. Run: git config --global user.name \"Your Name\" && git config --global user.email \"your@email.com\"")
-        else:
-            lower_email = resolved_email.lower()
-            placeholder_emails = {"your@email.com", "test@test.com", "username@example.com", "user@domain.com", "foo@bar.com", "invalid@email.com"}
-            placeholder_domains = ("example.com", "example.org", "example.net", "test.com", "invalid.com")
-
-            if lower_email in placeholder_emails or any(lower_email.endswith("@" + dom) for dom in placeholder_domains):
-                is_placeholder = True
-                reasons.append("Invalid Git identity detected: configured with a placeholder email.")
-
-        is_valid = bool(resolved_name and resolved_email and "@" in resolved_email and not is_placeholder)
-
+        is_valid = bool(name and email and "@" in email and not email.endswith("@example.com"))
         return {
             "valid": is_valid,
-            "name": resolved_name,
-            "email": resolved_email,
-            "repository_identity": {"name": local_name, "email": local_email},
-            "global_identity": {"name": global_name, "email": global_email},
-            "identity_source": {"name": name_source, "email": email_source},
-            "is_placeholder": is_placeholder,
-            "reasons": reasons,
+            "name": name,
+            "email": email,
+            "reasons": [] if is_valid else ["Missing or invalid git user.name / user.email config"],
         }
 
     def check_contribution_eligibility(self) -> Dict[str, Any]:

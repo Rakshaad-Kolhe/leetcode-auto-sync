@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
-from documentation.models import ProblemMetadata
-from documentation.statistics import scan_repository
+from server.documentation.models import ProblemMetadata
+from server.documentation.statistics import scan_repository
 from .file_diff import FileDiff
 
 

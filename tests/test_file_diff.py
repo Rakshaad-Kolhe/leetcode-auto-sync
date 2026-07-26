@@ -8,7 +8,7 @@ if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
 import pytest
-from sync.file_diff import FileDiff, compute_sha256, normalize_content
+from server.sync.file_diff import FileDiff, compute_sha256, normalize_content
 
 
 def test_normalize_content_crlf_and_trailing_whitespace():

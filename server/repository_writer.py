@@ -15,17 +15,17 @@ import tempfile
 from pathlib import Path
 from typing import Dict, Optional, Union
 
-from config import LEETCODE_REPO_PATH
-from config.config_manager import AppConfig, ConfigManager
-from config.folder_layout import (
+from server.config import LEETCODE_REPO_PATH
+from server.config.config_manager import AppConfig, ConfigManager
+from server.config.folder_layout import (
     get_folder_layout_strategy,
     sanitize_filename as config_sanitize_filename,
 )
-from documentation.generator import DocumentationGenerator
-from documentation.models import ProblemMetadata
-from git_service import InvalidRepositoryError
-from metadata.metadata_service import MetadataService
-from schemas import Submission
+from server.documentation.generator import DocumentationGenerator
+from server.documentation.models import ProblemMetadata
+from server.git_service import InvalidRepositoryError
+from server.metadata.metadata_service import MetadataService
+from server.schemas import Submission
 
 logger = logging.getLogger(__name__)
 
@@ -77,15 +77,37 @@ def get_file_extension(language: str) -> str:
     return ext
 
 
+import hashlib
+
 def validate_repository(repo_root: Path) -> None:
-    """Validate that `repo_root` exists and contains a `.git` folder."""
+    """Validate that `repo_root` exists, is a directory, and contains a `.git` folder."""
     repo_root = Path(repo_root).expanduser().resolve()
-    if not repo_root.exists() or not (repo_root / ".git").exists():
-        raise InvalidRepositoryError(f"Configured repository path is not a valid git repository:\n{repo_root}")
+    if not repo_root.exists() or not repo_root.is_dir():
+        raise InvalidRepositoryError(f"Configured repository path does not exist or is not a directory:\n{repo_root}")
+    if not (repo_root / ".git").exists():
+        raise InvalidRepositoryError(f"Configured repository path is not a valid git repository (missing .git):\n{repo_root}")
+    if not os.access(repo_root, os.W_OK):
+        raise InvalidRepositoryError(f"Configured repository path is not writable:\n{repo_root}")
+
+
+def verify_file_write(path: Path, expected_content: str) -> str:
+    """Re-read written file from disk, compare SHA-256 hash against expected content, and return SHA-256 string."""
+    if not path.exists():
+        raise FileNotFoundError(f"Filesystem verification failed: Output file missing at {path}")
+    actual_content = path.read_text(encoding="utf-8")
+    expected_hash = hashlib.sha256(expected_content.encode("utf-8")).hexdigest()
+    actual_hash = hashlib.sha256(actual_content.encode("utf-8")).hexdigest()
+    if expected_hash != actual_hash:
+        raise ValueError(
+            f"Filesystem verification failed for {path.name}:\n"
+            f"Expected SHA-256: {expected_hash}\n"
+            f"Actual SHA-256:   {actual_hash}"
+        )
+    return actual_hash
 
 
 def _atomic_write(path: Path, content: str) -> None:
-    """Write `content` to `path` atomically using a temp file in the same dir."""
+    """Write `content` to `path` atomically using a temp file in the same dir and verify integrity."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(dir=str(path.parent))
     try:
@@ -98,6 +120,7 @@ def _atomic_write(path: Path, content: str) -> None:
                 Path(tmp_path).unlink()
         except Exception:
             pass
+    verify_file_write(path, content)
 
 
 def _leetcode_url(slug: str) -> str:
@@ -200,7 +223,7 @@ def write_submission(
         generator = DocumentationGenerator(app_config)
         problem_readme = generator.generate_problem_readme(metadata, submission.code)
 
-    from sync.file_diff import FileDiff
+    from server.sync.file_diff import FileDiff
     code_changed = FileDiff.has_semantic_change(existing_code, submission.code)
     readme_changed = problem_readme is not None and FileDiff.has_semantic_change(existing_readme, problem_readme)
     changed = code_changed or readme_changed

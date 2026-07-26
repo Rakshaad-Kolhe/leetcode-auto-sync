@@ -7,12 +7,12 @@ import unittest
 from pathlib import Path
 import sys
 
-SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
-if str(SERVER_DIR) not in sys.path:
-    sys.path.insert(0, str(SERVER_DIR))
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
-from config.config_manager import GitConfig
-from git_service import GitService, generate_problem_commit_message
+from server.config.config_manager import GitConfig
+from server.git_service import GitService, generate_problem_commit_message
 
 
 class GitConfigTests(unittest.TestCase):

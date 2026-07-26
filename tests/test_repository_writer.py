@@ -10,14 +10,14 @@ from pathlib import Path
 SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
 sys.path.insert(0, str(SERVER_DIR))
 
-from git_service import GitService, InvalidRepositoryError  # noqa: E402
-from repository_writer import (  # noqa: E402
+from server.git_service import GitService, InvalidRepositoryError  # noqa: E402
+from server.repository_writer import (  # noqa: E402
     get_file_extension,
     sanitize_filename,
     validate_repository,
     write_submission,
 )
-from schemas import Submission  # noqa: E402
+from server.schemas import Submission  # noqa: E402
 
 
 class RepositoryWriterTests(unittest.TestCase):

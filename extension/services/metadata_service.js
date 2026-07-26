@@ -42,7 +42,7 @@
         return;
       }
 
-      // 2. Build the structured SubmissionModel
+      // 2. Build the structured SubmissionModel strictly from the parsed MetadataSnapshot
       const ModelClass = SubmissionModel || LeetCodeAutoSync.SubmissionModel;
       Logger.info(`MetadataService: SubmissionModel at call time = ${typeof SubmissionModel}, runtime = ${typeof LeetCodeAutoSync.SubmissionModel}`);
       if (!ModelClass) {
@@ -56,25 +56,40 @@
         difficulty: parsedData.difficulty,
         language: parsedData.language,
         url: parsedData.url,
-        verdict: Verdicts ? Verdicts.ACCEPTED : "Accepted"
+        verdict: Verdicts ? Verdicts.ACCEPTED : "Accepted",
+        snapshotId: parsedData.snapshotId,
+        navVersion: parsedData.navVersion
       });
 
-      // 3. Validate model fields
+      // 3. Navigation Version Guard: ensure navigation did not change during extraction
+      const ObserverObj = LeetCodeAutoSync.Observer;
+      const currentNavVersion = ObserverObj && typeof ObserverObj.getNavigationVersion === "function"
+        ? ObserverObj.getNavigationVersion()
+        : 0;
+      if (model.navVersion > 0 && currentNavVersion > 0 && model.navVersion !== currentNavVersion) {
+        Logger.warn(`MetadataService: Aborting extraction — navVersion changed during parsing (snapshot navVersion: ${model.navVersion}, active navVersion: ${currentNavVersion})`);
+        return;
+      }
+
+      // 4. Validate model fields and title-to-slug alignment
       Logger.info("MetadataService: Running model.validate()...", {
         id: model.id,
         title: model.title,
         slug: model.slug,
         difficulty: model.difficulty,
         language: model.language,
-        verdict: model.verdict
+        verdict: model.verdict,
+        snapshotId: model.snapshotId,
+        navVersion: model.navVersion
       });
       if (!model.validate()) {
-        Logger.error("MetadataService: Validation failed for submission model. Required fields missing.", {
+        Logger.error("MetadataService: Validation failed for submission model. Required fields missing or title/slug mismatch.", {
           id: model.id,
           title: model.title,
           slug: model.slug,
           difficulty: model.difficulty,
-          language: model.language
+          language: model.language,
+          snapshotId: model.snapshotId
         });
         return;
       }

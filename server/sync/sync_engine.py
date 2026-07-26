@@ -8,18 +8,28 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from config import LEETCODE_REPO_PATH
-from config.config_manager import AppConfig, ConfigManager
-from config.folder_layout import get_folder_layout_strategy, sanitize_filename
-from documentation.generator import DocumentationGenerator
-from documentation.index_generator import regenerate_topic_pages
-from documentation.models import ProblemMetadata
-from documentation.statistics import generate_statistics, scan_repository
-from git_service import GitService, GitServiceError
-from metadata.metadata_service import MetadataService
-from metrics import MetricsCollector
-from repository_writer import _atomic_write, _current_timestamp, _leetcode_url, _read_existing_timestamp, validate_repository
-from schemas import Submission
+from server.config import LEETCODE_REPO_PATH
+from server.config.config_manager import AppConfig, ConfigManager
+from server.config.folder_layout import get_folder_layout_strategy, sanitize_filename
+from server.documentation.generator import DocumentationGenerator
+from server.documentation.index_generator import regenerate_topic_pages
+from server.documentation.models import ProblemMetadata
+from server.documentation.statistics import generate_statistics, scan_repository
+from server.git_service import (
+    GitService,
+    GitServiceError,
+    RepositoryStatus,
+    RepositoryDivergedError,
+    DirtyWorkingTreeError,
+    DetachedHeadError,
+    FastForwardFailedError,
+    InvalidRepositoryError,
+)
+from server.metadata.metadata_service import MetadataService
+from server.metrics import MetricsCollector
+from server.repository_writer import _atomic_write, _current_timestamp, _leetcode_url, _read_existing_timestamp, validate_repository
+from server.schemas import Submission
+
 
 from .change_detector import ChangeDetector
 from .commit_planner import CommitPlanner
@@ -100,6 +110,16 @@ class SyncEngine:
         start_time = self.metrics.record_sync_start()
         snapshot = TransactionSnapshot(self.repo_root)
 
+        # Generate or retain trace_id
+        trace_id = submission.trace_id
+        if not trace_id:
+            from datetime import datetime, timezone
+            import uuid
+            date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+            rand_str = uuid.uuid4().hex[:8]
+            trace_id = f"SYNC-{date_str}-{rand_str}"
+        submission.trace_id = trace_id
+
         logger.info(
             "[EVENT:SYNC_STARTED]",
             extra={
@@ -107,6 +127,7 @@ class SyncEngine:
                 "problem_number": submission.id,
                 "problem_slug": submission.slug,
                 "language": submission.language,
+                "trace_id": trace_id,
             },
         )
 
@@ -133,6 +154,34 @@ class SyncEngine:
                 )
 
         try:
+            # 0. Pre-Write Git Repository Validation & State Analysis
+            branch = "main"
+            try:
+                branch_info = self.git_service.get_current_branch()
+                branch = branch_info["branch"]
+            except DetachedHeadError:
+                logger.error("[EVENT:SYNC_ABORTED_DETACHED_HEAD]")
+                raise
+            except GitServiceError:
+                pass
+
+            repo_state = self.git_service.analyze_repository(branch=branch)
+            if repo_state.status == RepositoryStatus.NOT_GIT_REPOSITORY:
+                raise InvalidRepositoryError(f"Path is not a valid Git repository: {self.repo_root}")
+            if repo_state.status == RepositoryStatus.DETACHED_HEAD:
+                logger.error("[EVENT:SYNC_ABORTED_DETACHED_HEAD]")
+                raise DetachedHeadError("Repository is in detached HEAD state. Synchronization aborted before file writes.")
+            if repo_state.status == RepositoryStatus.DIRTY:
+                logger.error("[EVENT:SYNC_ABORTED_DIRTY_WORKTREE]")
+                raise DirtyWorkingTreeError(f"Repository contains uncommitted changes on branch '{branch}'. Synchronization aborted before file writes.")
+            if repo_state.status == RepositoryStatus.DIVERGED:
+                logger.error("[EVENT:SYNC_ABORTED_REPOSITORY_DIVERGED]")
+                raise RepositoryDivergedError(
+                    f"Local and remote branch '{branch}' have diverged (ahead: {repo_state.ahead}, behind: {repo_state.behind}). Synchronization aborted before file writes."
+                )
+            if repo_state.status == RepositoryStatus.BEHIND:
+                self.git_service.fast_forward_pull(branch=branch)
+
             state = self.get_state()
             is_new_problem = submission.id not in state.solved_problem_ids
 
@@ -167,7 +216,7 @@ class SyncEngine:
                         self.metrics.record_sync_complete(start_time, success=True)
                         logger.info(
                             "[EVENT:FILES_SKIPPED]",
-                            extra={"event": "FILES_SKIPPED", "problem_number": submission.id, "reason": "duplicate_submission"},
+                            extra={"event": "FILES_SKIPPED", "problem_number": submission.id, "reason": "duplicate_submission", "trace_id": trace_id},
                         )
                         logger.info(
                             "[EVENT:SYNC_COMPLETED]",
@@ -176,12 +225,14 @@ class SyncEngine:
                                 "problem_number": submission.id,
                                 "status": "no_changes",
                                 "duration_ms": round((time.perf_counter() - start_time) * 1000, 2),
+                                "trace_id": trace_id,
                             },
                         )
                         rel_solution = (relative_folder / solution_path.name).as_posix()
                         rel_readme = (relative_folder / readme_path.name).as_posix()
                         return {
                             "status": "no_changes",
+                            "trace_id": trace_id,
                             "problem": {"id": submission.id, "title": submission.title},
                             "output_file": rel_solution,
                             "readme_file": rel_readme,
@@ -195,7 +246,7 @@ class SyncEngine:
 
             self.metrics.record_cache_miss()
 
-            # 3. Fetch metadata & prepare ProblemMetadata
+            # 3. Fetch metadata & verify metadata consistency
             t_meta_start = time.perf_counter()
             existing_code = solution_path.read_text(encoding="utf-8") if solution_path.exists() else None
             existing_readme = readme_path.read_text(encoding="utf-8") if readme_path.exists() else None
@@ -207,8 +258,13 @@ class SyncEngine:
                 title=submission.title,
                 difficulty=submission.difficulty,
             )
+            # Cross-verify metadata sources
+            self.metadata_service.verify_metadata_consistency(
+                submission.id, submission.title, submission.slug, enriched
+            )
+
             self.metrics.record_metadata_duration((time.perf_counter() - t_meta_start) * 1000)
-            logger.info("[EVENT:METADATA_FETCHED]", extra={"event": "METADATA_FETCHED", "problem_number": submission.id})
+            logger.info("[EVENT:METADATA_FETCHED]", extra={"event": "METADATA_FETCHED", "problem_number": submission.id, "trace_id": trace_id})
 
             metadata = ProblemMetadata(
                 problem_number=submission.id,
@@ -229,6 +285,7 @@ class SyncEngine:
                     {"title": r.title, "title_slug": r.title_slug, "difficulty": r.difficulty}
                     for r in enriched.similar_questions
                 ],
+                trace_id=trace_id,
             )
 
             generator = DocumentationGenerator(self.config)
@@ -236,8 +293,11 @@ class SyncEngine:
             if self.config.repository.auto_generate_readme:
                 t_readme_start = time.perf_counter()
                 problem_readme = generator.generate_problem_readme(metadata, submission.code)
+                # Verify generated README contains valid metadata
+                if submission.title and submission.title not in problem_readme:
+                    raise ValueError(f"README verification failed: title '{submission.title}' missing from generated README.")
                 self.metrics.record_readme_duration((time.perf_counter() - t_readme_start) * 1000)
-                logger.info("[EVENT:README_GENERATED]", extra={"event": "README_GENERATED", "problem_number": submission.id})
+                logger.info("[EVENT:README_GENERATED]", extra={"event": "README_GENERATED", "problem_number": submission.id, "trace_id": trace_id})
 
             # 4. Perform change detection for solution & problem README
             solution_changed = self.change_detector.detect_file_change(solution_path, submission.code)
@@ -291,6 +351,29 @@ class SyncEngine:
                     changed_files.append("README.md")
                     logger.info("[EVENT:ROOT_README_UPDATED]", extra={"event": "ROOT_README_UPDATED"})
 
+<<<<<<< HEAD
+            topics_updated_count = 0
+            if self.config.repository.auto_generate_topics and metadata.topics:
+                for topic_name in metadata.topics:
+                    topic_file = self.repo_root / "Topics" / f"{topic_name}.md"
+                    snapshot.record_file(topic_file)
+
+                topic_paths = regenerate_topic_pages(
+                    self.repo_root, all_problems, generator, affected_topics=metadata.topics
+                )
+                for topic_file in topic_paths:
+                    if topic_file.exists():
+                        topic_content = topic_file.read_text(encoding="utf-8")
+                        self.change_detector.record_change(topic_file, topic_content)
+                        rel_topic = topic_file.relative_to(self.repo_root).as_posix()
+                        if rel_topic not in changed_files:
+                            changed_files.append(rel_topic)
+                        topics_updated_count += 1
+                        logger.info(
+                            "[EVENT:TOPIC_UPDATED]",
+                            extra={"event": "TOPIC_UPDATED", "topic": topic_file.stem},
+                        )
+=======
             if self.config.repository.auto_generate_topics:
                 t_topic_start = time.perf_counter()
                 topic_paths = regenerate_topic_pages(self.repo_root, all_problems, generator)
@@ -305,6 +388,7 @@ class SyncEngine:
             # 6. Execute planned Git Operations (Stage -> Commit -> Push)
 
             git_result: Dict[str, Any] = {"status": "no_changes", "committed": False, "pushed": False}
+>>>>>>> c71cf925cae3fb5a1b994a752569f119875dae1d
 
             if not changed_files and not self.git_service.get_status().get("clean", True):
                 git_result["status"] = "staged_only"
@@ -393,7 +477,9 @@ class SyncEngine:
             )
 
             return {
-                "status": "created" if is_new_problem else "updated",
+                "status": "created" if is_new_problem else ("updated" if changed_files else "no_changes"),
+                "trace_id": trace_id,
+
                 "problem": {"id": submission.id, "title": submission.title},
                 "output_file": rel_solution,
                 "readme_file": rel_readme,

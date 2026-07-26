@@ -8,8 +8,8 @@ import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
-from config import LEETCODE_REPO_PATH
-from config.config_manager import AppConfig, ConfigManager
+from server.config import LEETCODE_REPO_PATH
+from server.config.config_manager import AppConfig, ConfigManager
 
 from .generator import DocumentationGenerator
 from .models import ProblemMetadata

@@ -134,10 +134,8 @@
         difficulty: submission.metadata.difficulty,
         language: submission.metadata.language,
         code: submission.code,
-        trace_id: submission.traceId || null,
-        source_hash: submission.sourceHash || null,
-        line_count: submission.lineCount || null,
-        char_count: submission.charCount || null
+        trace_id: submission.traceId
+
       };
 
       const baseUrl = await getBackendUrl();

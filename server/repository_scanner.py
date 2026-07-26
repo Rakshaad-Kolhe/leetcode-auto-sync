@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from config import LEETCODE_REPO_PATH
-from documentation.statistics import DIFFICULTY_FOLDERS, scan_repository as scan_documented_repository
+from server.config import LEETCODE_REPO_PATH
+from server.documentation.statistics import DIFFICULTY_FOLDERS, scan_repository as scan_documented_repository
 
 FOLDER_ORDER = DIFFICULTY_FOLDERS
 SOLUTIONS_DIR_NAME = "Leetcode-solutions"

@@ -2,6 +2,7 @@
 importScripts(
   "../shared/constants.js",
   "../shared/logger.js",
+  "../models/metadata_snapshot.js",
   "../models/submission_model.js",
   "../models/accepted_submission.js",
   "../services/backend_service.js"
@@ -72,18 +73,23 @@ async function performSync(submissionPayload) {
   });
 
   try {
-    const { SubmissionModel, AcceptedSubmission, BackendService } = globalThis.LeetCodeAutoSync;
+    const { MetadataSnapshot, SubmissionModel, AcceptedSubmission, BackendService } = globalThis.LeetCodeAutoSync;
 
     Logger.info("Background: Reconstructing SubmissionModel and AcceptedSubmission...");
     // 1. Reconstruct classes to perform deep validation
-    const metadata = new SubmissionModel(submissionPayload.metadata);
+    const metadataModel = new SubmissionModel(submissionPayload.metadata);
+    if (!metadataModel.validate()) {
+      throw new Error(`Background: Payload metadata model validation failed for slug '${metadataModel.slug}'`);
+    }
+
     const submission = new AcceptedSubmission({
-      metadata: metadata,
+      metadata: metadataModel,
       code: submissionPayload.code,
-      extractedAt: submissionPayload.extractedAt
+      extractedAt: submissionPayload.extractedAt,
+      traceId: submissionPayload.traceId
     });
 
-    Logger.info("Background: Reconstructed Submission object:", submission);
+    Logger.info("Background: Reconstructed and validated Submission object:", submission);
 
     // 2. Dispatch payload via BackendService client
     Logger.info("Background: Dispatching submission to BackendService.submitSubmission()...");
@@ -153,10 +159,6 @@ function handleMessage(message, sender, sendResponse) {
         Logger.info(`Reset active submission state due to leaving problem context (Slug: ${prevSlug} -> ${newSlug})`);
       } else {
         Logger.info("Background: Navigation within same logical problem session. Preserving active problem context.");
-        if (message.payload && activePageContext) {
-          message.payload.slug = prevSlug;
-          message.payload.pageType = activePageContext.pageType;
-        }
       }
     } else if (newSlug !== null) {
       activeSubmissionState = { status: "IDLE", verdict: null };

@@ -7,7 +7,7 @@ SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
 if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
-from sync.repository_state import build_repository_state
+from server.sync.repository_state import build_repository_state
 
 
 def test_repository_state_empty(tmp_path: Path):

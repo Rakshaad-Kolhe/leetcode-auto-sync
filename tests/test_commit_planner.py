@@ -8,8 +8,8 @@ SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
 if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
-from schemas import Submission
-from sync.commit_planner import CommitPlanner
+from server.schemas import Submission
+from server.sync.commit_planner import CommitPlanner
 
 
 def test_commit_planner_clean_repo_no_changed_files():
