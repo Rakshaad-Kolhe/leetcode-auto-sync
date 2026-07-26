@@ -351,44 +351,37 @@ class SyncEngine:
                     changed_files.append("README.md")
                     logger.info("[EVENT:ROOT_README_UPDATED]", extra={"event": "ROOT_README_UPDATED"})
 
-<<<<<<< HEAD
             topics_updated_count = 0
-            if self.config.repository.auto_generate_topics and metadata.topics:
-                for topic_name in metadata.topics:
-                    topic_file = self.repo_root / "Topics" / f"{topic_name}.md"
-                    snapshot.record_file(topic_file)
+            if self.config.repository.auto_generate_topics:
+                t_topic_start = time.perf_counter()
+                affected = metadata.topics if (metadata and metadata.topics) else None
+                if affected:
+                    for topic_name in affected:
+                        topic_file = self.repo_root / "Topics" / f"{topic_name}.md"
+                        snapshot.record_file(topic_file)
 
                 topic_paths = regenerate_topic_pages(
-                    self.repo_root, all_problems, generator, affected_topics=metadata.topics
+                    self.repo_root, all_problems, generator, affected_topics=affected
                 )
                 for topic_file in topic_paths:
                     if topic_file.exists():
                         topic_content = topic_file.read_text(encoding="utf-8")
                         self.change_detector.record_change(topic_file, topic_content)
-                        rel_topic = topic_file.relative_to(self.repo_root).as_posix()
-                        if rel_topic not in changed_files:
-                            changed_files.append(rel_topic)
+                        try:
+                            rel_topic = topic_file.relative_to(self.repo_root).as_posix()
+                            if rel_topic not in changed_files:
+                                changed_files.append(rel_topic)
+                        except ValueError:
+                            pass
                         topics_updated_count += 1
                         logger.info(
                             "[EVENT:TOPIC_UPDATED]",
                             extra={"event": "TOPIC_UPDATED", "topic": topic_file.stem},
                         )
-=======
-            if self.config.repository.auto_generate_topics:
-                t_topic_start = time.perf_counter()
-                topic_paths = regenerate_topic_pages(self.repo_root, all_problems, generator)
-                for tp in topic_paths:
-                    try:
-                        rel = tp.relative_to(self.repo_root).as_posix()
-                        if rel not in changed_files:
-                            changed_files.append(rel)
-                    except ValueError:
-                        pass
 
             # 6. Execute planned Git Operations (Stage -> Commit -> Push)
 
             git_result: Dict[str, Any] = {"status": "no_changes", "committed": False, "pushed": False}
->>>>>>> c71cf925cae3fb5a1b994a752569f119875dae1d
 
             if not changed_files and not self.git_service.get_status().get("clean", True):
                 git_result["status"] = "staged_only"
