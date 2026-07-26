@@ -8,17 +8,29 @@
   const { Logger } = LeetCodeAutoSync;
 
   const DEFAULT_BACKEND_URL = "http://127.0.0.1:8000";
-  const TIMEOUT_MS = 8000;
+  const HEALTH_TIMEOUT_MS = 5000;
+  const DEFAULT_SUBMIT_TIMEOUT_MS = 45000;
+  const MAX_TRANSIENT_RETRIES = 2;
 
   /**
-   * Reads the configured backend URL from chrome.storage.local.
-   * @returns {Promise<string>}
+   * Reads configured backend settings from chrome.storage.local.
+   * @returns {Promise<{ backendUrl: string, submitTimeoutMs: number }>}
    */
-  function getBackendUrl() {
+  function getBackendSettings() {
     return new Promise((resolve) => {
-      chrome.storage.local.get({ backendUrl: DEFAULT_BACKEND_URL }, (items) => {
-        resolve(items.backendUrl || DEFAULT_BACKEND_URL);
-      });
+      if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get(
+          { backendUrl: DEFAULT_BACKEND_URL, submitTimeoutMs: DEFAULT_SUBMIT_TIMEOUT_MS },
+          (items) => {
+            resolve({
+              backendUrl: items.backendUrl || DEFAULT_BACKEND_URL,
+              submitTimeoutMs: typeof items.submitTimeoutMs === "number" ? items.submitTimeoutMs : DEFAULT_SUBMIT_TIMEOUT_MS
+            });
+          }
+        );
+      } else {
+        resolve({ backendUrl: DEFAULT_BACKEND_URL, submitTimeoutMs: DEFAULT_SUBMIT_TIMEOUT_MS });
+      }
     });
   }
 
@@ -40,29 +52,30 @@
   }
 
   /**
-   * Normalizes network exceptions/errors.
+   * Normalizes network exceptions/errors into user-friendly messages with recovery hints.
    * @param {Error} error - The caught exception.
    * @returns {Object} Normalized response structure.
    */
   function normalizeError(error) {
     let message = error.message || "Unknown communication error";
     if (error.name === "AbortError") {
-      message = "Request timed out";
-    } else if (message.includes("Failed to fetch") || message.includes("NetworkError")) {
-      message = "Connection refused (backend is likely stopped)";
+      message = "Request timed out after background processing boundary. Check server logs and network status.";
+    } else if (message.includes("Failed to fetch") || message.includes("NetworkError") || message.includes("ECONNREFUSED")) {
+      message = "Connection refused: Local backend server is not running. Start with 'python -m uvicorn server.app:app --reload --port 8000' and retry.";
     }
     return normalizeResponse(false, null, message, null);
   }
 
   /**
-   * Performs a fetch request with a timeout boundary.
+   * Performs a fetch request with a configurable timeout boundary.
    * @param {string} url - Target URL.
    * @param {Object} options - Standard fetch options.
+   * @param {number} [timeoutMs] - Timeout limit in milliseconds.
    * @returns {Promise<Response>}
    */
-  async function fetchWithTimeout(url, options = {}) {
+  async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_SUBMIT_TIMEOUT_MS) {
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const id = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetch(url, {
         ...options,
@@ -76,13 +89,54 @@
     }
   }
 
+  /**
+   * Executes network fetch with exponential backoff retries for transient gateway or network failures.
+   * Retries ONLY transient status codes (502, 503, 504) or network errors. Never retries 4xx client errors.
+   * @param {string} url - Target URL.
+   * @param {Object} options - Fetch options.
+   * @param {number} timeoutMs - Per-attempt timeout.
+   * @returns {Promise<Response>}
+   */
+  async function fetchWithRetry(url, options = {}, timeoutMs = DEFAULT_SUBMIT_TIMEOUT_MS) {
+    let lastError = null;
+    let attempt = 0;
+    const backoffs = [1000, 2000];
+
+    while (attempt <= MAX_TRANSIENT_RETRIES) {
+      try {
+        const response = await fetchWithTimeout(url, options, timeoutMs);
+        // If response status is a transient server error, retry if attempts remain
+        if ([502, 503, 504].includes(response.status) && attempt < MAX_TRANSIENT_RETRIES) {
+          const delay = backoffs[attempt] || 2000;
+          Logger.warn(`BackendService: Transient server error ${response.status}. Retrying in ${delay}ms (Attempt ${attempt + 1}/${MAX_TRANSIENT_RETRIES})...`);
+          await new Promise((r) => setTimeout(r, delay));
+          attempt++;
+          continue;
+        }
+        return response;
+      } catch (err) {
+        lastError = err;
+        // Do not retry client abort timeouts or client 4xx logic
+        if (err.name === "AbortError" || attempt >= MAX_TRANSIENT_RETRIES) {
+          throw err;
+        }
+        const delay = backoffs[attempt] || 2000;
+        Logger.warn(`BackendService: Network request attempt ${attempt + 1} failed: ${err.message}. Retrying in ${delay}ms...`);
+        await new Promise((r) => setTimeout(r, delay));
+        attempt++;
+      }
+    }
+    throw lastError;
+  }
+
   const BackendService = {
     /**
      * Exposes the active target URL.
      * @returns {Promise<string>}
      */
     async getUrl() {
-      return getBackendUrl();
+      const settings = await getBackendSettings();
+      return settings.backendUrl;
     },
 
     /**
@@ -91,14 +145,14 @@
      */
     async checkBackend() {
       Logger.info("BackendService: Checking health connectivity status...");
-      const baseUrl = await getBackendUrl();
+      const { backendUrl } = await getBackendSettings();
       try {
-        const response = await fetchWithTimeout(`${baseUrl}/health`, {
+        const response = await fetchWithTimeout(`${backendUrl}/health`, {
           method: "GET",
           headers: {
             "Accept": "application/json"
           }
-        });
+        }, HEALTH_TIMEOUT_MS);
 
         if (response.ok) {
           const data = await response.json();
@@ -134,21 +188,21 @@
         difficulty: submission.metadata.difficulty,
         language: submission.metadata.language,
         code: submission.code,
-        trace_id: submission.traceId
-
+        trace_id: submission.traceId,
+        source_hash: submission.sourceHash || null
       };
 
-      const baseUrl = await getBackendUrl();
-      Logger.info(`BackendService: Payload validated. Dispatching to backend POST ${baseUrl}/submit...`);
+      const { backendUrl, submitTimeoutMs } = await getBackendSettings();
+      Logger.info(`BackendService: Payload validated. Dispatching to backend POST ${backendUrl}/submit (timeout: ${submitTimeoutMs}ms)...`);
       try {
-        const response = await fetchWithTimeout(`${baseUrl}/submit`, {
+        const response = await fetchWithRetry(`${backendUrl}/submit`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Accept": "application/json"
           },
           body: JSON.stringify(payload)
-        });
+        }, submitTimeoutMs);
 
         Logger.info("BackendService: Backend responded with status", response.status);
 

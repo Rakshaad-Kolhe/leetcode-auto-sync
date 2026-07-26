@@ -102,7 +102,7 @@
         return;
       }
 
-      Logger.info("SolutionService: Solution extraction started");
+      Logger.info("[PIPELINE] Accepted solution extraction started");
 
       try {
         // 1. Extract the code using the multi-tier parser
@@ -112,11 +112,11 @@
 
         // 2. Validate the code content
         if (!validateCode(code)) {
-          Logger.error("SolutionService: Solution code validation failed. Extraction aborted.");
+          Logger.error("[PIPELINE] SolutionService: Solution code validation failed. Extraction aborted.");
           return;
         }
 
-        Logger.info(`SolutionService: Solution extraction completed. Length: ${code.length} characters.`);
+        Logger.info(`[PIPELINE] Solution extracted successfully. Length: ${code.length} characters.`);
 
         let sourceHash = null;
         try {
@@ -143,17 +143,17 @@
         // 4. Validate complete model structure
         Logger.info("SolutionService: Validating AcceptedSubmission model...");
         if (!submission.validate()) {
-          Logger.error("SolutionService: Validation failed for complete AcceptedSubmission model.");
+          Logger.error("[PIPELINE] SolutionService: Validation failed for complete AcceptedSubmission model.");
           return;
         }
 
-        Logger.info("SolutionService: AcceptedSubmission model validated successfully. Character count:", code.length);
+        Logger.info("[PIPELINE] AcceptedSubmissionModel created successfully. Character count:", code.length);
 
         // 5. Send complete submission object to background
-        Logger.info("SolutionService: Calling sendToBackground()...");
+        Logger.info("[PIPELINE] Calling sendToBackground() to dispatch SUBMISSION_ACCEPTED...");
         sendToBackground(submission);
       } catch (err) {
-        Logger.error("SolutionService: UNCAUGHT EXCEPTION in processAcceptedSubmission:", err.message, err.stack);
+        Logger.error("[PIPELINE] SolutionService: UNCAUGHT EXCEPTION in processAcceptedSubmission:", err.message, err.stack);
       }
     },
 
