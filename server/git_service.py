@@ -176,6 +176,30 @@ class NetworkError(GitServiceError):
     retryable = True
 
 
+class RemoteAheadError(GitServiceError):
+    """Raised when remote branch has newer commits not present locally."""
+
+    code = "remote_ahead"
+
+
+class BranchDivergedError(GitServiceError):
+    """Raised when local and remote branches contain unique commits."""
+
+    code = "branch_diverged"
+
+
+class MergeConflictError(GitServiceError):
+    """Raised when automatic rebase encounters merge conflicts."""
+
+    code = "merge_conflict"
+
+
+class AuthenticationError(GitServiceError):
+    """Raised when Git authentication / credentials fail."""
+
+    code = "authentication_failed"
+
+
 class GitService:
     """Run local Git commands with structured results, branch state analysis, and recovery."""
 
@@ -497,6 +521,7 @@ class GitService:
         logger.warning("[GIT] rebase_from_upstream is deprecated. Performing fast_forward_pull instead.")
         self.fast_forward_pull(remote=remote, branch=branch)
 
+
     @retry_with_backoff(max_retries=3, initial_delay=0.1, exceptions=(PushFailedError, GitServiceError))
     def push_changes(self, branch: str | None = None) -> Dict[str, Any]:
         """Push the requested branch to remote, with pre-push branch state analysis and post-push verification."""
@@ -533,6 +558,7 @@ class GitService:
             raise PushFailedError(f"Git push to remote '{self.remote_name}' failed: {exc.message}") from exc
 
         # Step 3: Post-Push Remote Verification (Confirm remote SHA matches local HEAD)
+
         self.fetch_remote()
         post_status = self.get_branch_status(branch=target_branch)
         if post_status["ahead_count"] > 0:

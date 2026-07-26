@@ -12,6 +12,7 @@ if str(ROOT_DIR) not in sys.path:
 
 import pytest
 from server.git_service import (
+
     GitService,
     GitNotInstalledError,
     InvalidRepositoryError,
@@ -22,6 +23,7 @@ from server.git_service import (
     RemoteAheadError,
     BranchDivergedError,
     RepositoryDivergedError,
+
     MergeConflictError,
     AuthenticationError,
 )
@@ -71,6 +73,7 @@ def test_git_push_reliability_ahead_only(git_remote_and_local: dict):
 
 
 def test_git_push_reliability_remote_behind_only_fast_forward(git_remote_and_local: dict, tmp_path: Path):
+
     remote_dir = git_remote_and_local["remote"]
     local_dir = git_remote_and_local["local"]
 
@@ -91,6 +94,7 @@ def test_git_push_reliability_remote_behind_only_fast_forward(git_remote_and_loc
 
 
 def test_git_push_reliability_branch_diverged_raises_error(git_remote_and_local: dict, tmp_path: Path):
+
     remote_dir = git_remote_and_local["remote"]
     local_dir = git_remote_and_local["local"]
 
@@ -112,4 +116,5 @@ def test_git_push_reliability_branch_diverged_raises_error(git_remote_and_local:
     git_srv = GitService(repo_path=local_dir, auto_push=True)
 
     with pytest.raises((RepositoryDivergedError, BranchDivergedError, RemoteAheadError, PushFailedError)):
+
         git_srv.push_changes("main")
