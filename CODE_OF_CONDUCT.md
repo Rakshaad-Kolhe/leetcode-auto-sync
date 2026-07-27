@@ -1,19 +1,77 @@
 # Contributor Covenant Code of Conduct
 
 ## Our Pledge
-We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation.
 
-## Our Standards
-Examples of behavior that contributes to a positive environment include:
-* Using welcoming and inclusive language
-* Being respectful of differing viewpoints and experiences
-* Gracefully accepting constructive criticism
-* Focusing on what is best for the community
-* Showing empathy towards other community members
+We are committed to fostering an open, welcoming, respectful, and inclusive community.
 
-Examples of unacceptable behavior include:
-* The use of sexualized language or imagery and unwelcome sexual attention or advances
-* Trolling, insulting or derogatory comments, and personal or political attacks
-* Public or private harassment
-* Publishing others' private information, such as a physical or electronic address, without explicit permission
-* Other conduct which could reasonably be considered inappropriate in a professional setting
+Participants should feel safe regardless of:
+
+- age
+- disability
+- ethnicity
+- gender identity
+- gender expression
+- nationality
+- race
+- religion
+- sexual orientation
+- experience level
+- socioeconomic status
+
+---
+
+## Expected Behavior
+
+Community members are expected to:
+
+- Be respectful.
+- Be constructive.
+- Assume good intent.
+- Welcome newcomers.
+- Provide helpful feedback.
+- Respect differing viewpoints.
+- Collaborate professionally.
+
+---
+
+## Unacceptable Behavior
+
+Examples include:
+
+- Harassment
+- Hate speech
+- Personal attacks
+- Trolling
+- Discrimination
+- Threats
+- Publishing private information
+- Intimidation
+- Disruptive behavior
+
+---
+
+## Enforcement
+
+Project maintainers are responsible for enforcing this Code of Conduct.
+
+Reported violations will be reviewed promptly and handled fairly.
+
+Depending on severity, maintainers may:
+
+- request changes
+- issue warnings
+- remove content
+- suspend participation
+- permanently ban repeat offenders
+
+---
+
+## Reporting Issues
+
+If you experience or witness behavior that violates this Code of Conduct, please contact the project maintainers through GitHub Issues (for non-sensitive matters) or the security/contact channel described in the repository documentation for sensitive reports.
+
+---
+
+## Attribution
+
+This Code of Conduct is adapted from the Contributor Covenant v2.1.
