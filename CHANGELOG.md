@@ -19,9 +19,10 @@ This is the first stable public release of **LeetCode Auto Sync**, providing an 
 - Added a multi-stage Monaco Editor extraction pipeline with API, viewport, and DOM fallbacks for reliable solution capture.
 - Implemented a submission lifecycle state machine for robust synchronization triggering.
 - Added popup-based diagnostics, health reporting, and backend connectivity validation.
+- Added transient error retries (1s, 2s) for 502/503/504 gateway errors and background state persistence via `chrome.storage.local`.
 
 #### Backend
-- Implemented a FastAPI backend exposing REST endpoints for synchronization, diagnostics, and health monitoring.
+- Implemented a FastAPI backend exposing REST endpoints for synchronization, diagnostics (`GET /diagnostics`), health monitoring (`GET /status`), and telemetry (`GET /metrics`).
 - Added centralized configuration management with environment-based settings.
 - Implemented structured request validation and standardized API error handling.
 
@@ -59,16 +60,16 @@ This is the first stable public release of **LeetCode Auto Sync**, providing an 
 - Added Git identity validation without modifying user configuration.
 
 #### Reliability
-- Added configurable request timeout handling.
+- Added configurable request timeout handling (45-second submit boundary).
 - Implemented exponential backoff retry for transient failures (HTTP 502, 503, and 504).
 - Added background synchronization persistence using `chrome.storage.local`.
 - Added structured diagnostics and synchronization telemetry.
 
 #### Installation & Tooling
 - Added cross-platform installation scripts for:
-  - Windows
-  - Linux
-  - macOS
+  - Windows (`install.ps1`)
+  - Linux (`install.sh`)
+  - macOS (`install.command`)
 - Added environment validation through the built-in Doctor utility.
 - Added production-ready GitHub Actions CI pipeline with automated testing and release validation.
 

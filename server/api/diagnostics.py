@@ -16,7 +16,6 @@ from server.version import __version__ as SERVICE_VERSION
 
 logger = logging.getLogger(__name__)
 
-
 def sanitize_config(data: Any) -> Any:
     """Recursively mask sensitive values in dictionary."""
     if isinstance(data, dict):
