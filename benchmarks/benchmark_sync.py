@@ -9,12 +9,11 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SERVER_DIR = PROJECT_ROOT / "server"
-if str(SERVER_DIR) not in sys.path:
-    sys.path.insert(0, str(SERVER_DIR))
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-from schemas import Submission
-from sync.sync_engine import SyncEngine
+from server.schemas import Submission
+from server.sync.sync_engine import SyncEngine
 
 
 def benchmark_sync_batch(count: int = 100) -> dict[str, float]:

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
-from server.git_service import GitService, generate_problem_commit_message
+from server.services.git_service import GitService, generate_problem_commit_message
 from server.schemas import Submission
 
 logger = logging.getLogger(__name__)
