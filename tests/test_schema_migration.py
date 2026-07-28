@@ -7,14 +7,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
-if str(SERVER_DIR) not in sys.path:
-    sys.path.insert(0, str(SERVER_DIR))
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 import pytest
-from git_service import GitService
-from schemas import Submission
-from sync.sync_engine import SourceIntegrityError, SyncEngine
+from server.services.git_service import GitService
+from server.schemas import Submission
+from server.sync.sync_engine import SourceIntegrityError, SyncEngine
 
 
 @pytest.fixture

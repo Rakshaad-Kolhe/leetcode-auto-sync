@@ -15,7 +15,7 @@ from server.documentation.generator import DocumentationGenerator
 from server.documentation.index_generator import regenerate_topic_pages
 from server.documentation.models import ProblemMetadata
 from server.documentation.statistics import generate_statistics, scan_repository
-from server.git_service import (
+from server.services.git_service import (
     GitService,
     GitServiceError,
     RepositoryStatus,
@@ -27,7 +27,7 @@ from server.git_service import (
 )
 from server.metadata.metadata_service import MetadataService
 from server.metrics import MetricsCollector
-from server.repository_writer import _atomic_write, _current_timestamp, _leetcode_url, _read_existing_timestamp, validate_repository
+from server.services.repository_writer import _atomic_write, _current_timestamp, _leetcode_url, _read_existing_timestamp, validate_repository
 from server.schemas import Submission
 
 

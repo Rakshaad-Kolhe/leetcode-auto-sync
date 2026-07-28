@@ -20,13 +20,13 @@ import sys
 import urllib.request
 from pathlib import Path
 
-# Add server folder to path if running directly
-SERVER_DIR = Path(__file__).resolve().parents[1] / "server"
-if str(SERVER_DIR) not in sys.path:
-    sys.path.insert(0, str(SERVER_DIR))
+# Add project root folder to path if running directly
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 try:
-    from git_service import GitService
+    from server.services.git_service import GitService
 except ImportError:
     GitService = None  # type: ignore
 
