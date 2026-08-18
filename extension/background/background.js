@@ -5,6 +5,38 @@ importScripts(
   "../models/metadata_snapshot.js",
   "../models/submission_model.js",
   "../models/accepted_submission.js",
+  "../models/developer_intelligence.js",
+  "../models/skill_tree.js",
+  "../models/knowledge_graph.js",
+  "../models/achievement.js",
+  "../models/roadmap.js",
+  "../models/milestone.js",
+  "../models/projection.js",
+  "../models/developer_view_model.js",
+  "../domain/data_provenance.js",
+  "../domain/developer_data_store.js",
+  "../domain/developer_settings_store.js",
+  "../services/authentication_service.js",
+  "../services/data_normalization_service.js",
+  "../services/metric_validation_service.js",
+  "../services/leetcode_graphql_service.js",
+  "../services/company_tags_dataset_service.js",
+  "../services/repository_scanner_service.js",
+  "../services/repository_health_calculator.js",
+  "../services/snapshot_engine_service.js",
+  "../services/developer_view_model_builder.js",
+  "../services/extension_icon_service.js",
+  "../models/developer_report.js",
+  "../intelligence/skill_tree_service.js",
+  "../intelligence/journey_service.js",
+  "../intelligence/pattern_service.js",
+  "../intelligence/interview_matrix_service.js",
+  "../intelligence/interview_intelligence_service.js",
+  "../intelligence/recommendation_service.js",
+  "../intelligence/achievement_service.js",
+  "../intelligence/projection_service.js",
+  "../intelligence/repository_audit_service.js",
+  "../intelligence/developer_intelligence_service.js",
   "../services/backend_service.js"
 );
 
@@ -61,10 +93,51 @@ function persistState() {
 }
 
 /**
+ * Triggers a native Chrome OS/browser notification.
+ * @param {string} title
+ * @param {string} message
+ */
+function sendNotification(title, message) {
+  if (typeof chrome !== "undefined" && chrome.notifications && chrome.notifications.create) {
+    const iconUrl = (chrome.runtime && chrome.runtime.getURL) ? chrome.runtime.getURL("icons/icon-48.png") : "icons/icon-48.png";
+    chrome.notifications.create({
+      type: "basic",
+      iconUrl: iconUrl,
+      title: title || "DevPulse",
+      message: message || "Notification from DevPulse",
+      priority: 1
+    }, () => {
+      const err = chrome.runtime.lastError;
+    });
+  }
+}
+
+/**
+ * Initializes and schedules background periodic alarms based on settings.
+ */
+function setupAlarms() {
+  if (typeof chrome === "undefined" || !chrome.alarms) return;
+
+  const { DeveloperSettingsStore } = globalThis.LeetCodeAutoSync || {};
+  const intervalMin = DeveloperSettingsStore ? DeveloperSettingsStore.getSetting("synchronization.syncIntervalMinutes", 5) : 5;
+
+  chrome.alarms.create("sync_interval_alarm", { periodInMinutes: intervalMin });
+  chrome.alarms.create("streak_reminder_alarm", { periodInMinutes: 60 });
+  chrome.alarms.create("daily_summary_alarm", { periodInMinutes: 1440 });
+}
+
+/**
  * Handles extension installation or startup events.
  */
 function handleInstalled() {
-  Logger.info("LeetCode Auto Sync extension started/updated");
+  Logger.info("DevPulse extension started/updated");
+  const { DeveloperDataStore, ExtensionIconService } = globalThis.LeetCodeAutoSync || {};
+  if (ExtensionIconService && DeveloperDataStore && DeveloperDataStore.stats) {
+    const streak = DeveloperDataStore.stats.officialStreak || 0;
+    const completed = Boolean(DeveloperDataStore.stats.currentDayCompleted);
+    ExtensionIconService.updateStreakIcon(streak, completed);
+  }
+  setupAlarms();
 }
 
 /**
@@ -84,6 +157,45 @@ function notifyPopup(msg) {
  */
 async function performSync(submissionPayload) {
   Logger.info("Background: performSync() invoked with payload:", submissionPayload);
+
+  // Check Settings Toggles
+  const { DeveloperSettingsStore } = globalThis.LeetCodeAutoSync || {};
+  const isAutoSyncEnabled = DeveloperSettingsStore ? DeveloperSettingsStore.getSetting("synchronization.autoSyncAcceptedSubmissions", true) : true;
+  if (!isAutoSyncEnabled && !submissionPayload.force) {
+    Logger.info("Background: Auto-sync disabled in settings, skipping automatic submission dispatch");
+    latestSyncResult = {
+      success: false,
+      timestamp: new Date().toISOString(),
+      durationMs: 0,
+      error: "Auto-sync disabled in Settings"
+    };
+    persistState();
+    notifyPopup({
+      type: MessageTypes.SYNC_STATUS_CHANGED,
+      payload: latestSyncResult
+    });
+    return;
+  }
+
+  const isWithinWindow = DeveloperSettingsStore && typeof DeveloperSettingsStore.isWithinSyncWindow === "function"
+    ? DeveloperSettingsStore.isWithinSyncWindow()
+    : true;
+  if (!isWithinWindow && !submissionPayload.force) {
+    Logger.info("Background: Current time outside auto-sync time window, skipping submission dispatch");
+    latestSyncResult = {
+      success: false,
+      timestamp: new Date().toISOString(),
+      durationMs: 0,
+      error: "Outside auto-sync time window"
+    };
+    persistState();
+    notifyPopup({
+      type: MessageTypes.SYNC_STATUS_CHANGED,
+      payload: latestSyncResult
+    });
+    return;
+  }
+
   const payloadId = submissionPayload && submissionPayload.metadata ? submissionPayload.metadata.id : "0";
   const payloadCode = submissionPayload ? submissionPayload.code || "" : "";
   const currentKey = `${payloadId}_${payloadCode.length}_${submissionPayload.traceId || ""}`;
@@ -148,10 +260,20 @@ async function performSync(submissionPayload) {
     };
     persistState();
 
+    const notifEnabled = DeveloperSettingsStore ? DeveloperSettingsStore.getSetting("notifications.syncNotifications", true) : true;
     if (response.success) {
       Logger.info(`[PIPELINE] Synchronization completed successfully in ${durationMs}ms!`);
+      if (notifEnabled) {
+        sendNotification("DevPulse", `Successfully synced ${metadataModel.title} to GitHub!`);
+      }
+      if (globalThis.LeetCodeAutoSync.DeveloperIntelligenceService) {
+        globalThis.LeetCodeAutoSync.DeveloperIntelligenceService.getOrComputeIntelligence({}, true);
+      }
     } else {
       Logger.error(`[PIPELINE] Synchronization failed after ${durationMs}ms: ${response.error}`);
+      if (notifEnabled) {
+        sendNotification("DevPulse — Failed", `Failed to sync ${metadataModel.title}: ${response.error}`);
+      }
     }
 
     // Broadcast synchronization completion to popup
@@ -170,6 +292,11 @@ async function performSync(submissionPayload) {
     };
     persistState();
     Logger.error(`[PIPELINE] Synchronization failed with exception after ${durationMs}ms: ${latestSyncResult.error}`, err.message, err.stack);
+
+    const notifEnabled = DeveloperSettingsStore ? DeveloperSettingsStore.getSetting("notifications.syncNotifications", true) : true;
+    if (notifEnabled) {
+      sendNotification("DevPulse — Error", `Sync error: ${latestSyncResult.error}`);
+    }
 
     notifyPopup({
       type: MessageTypes.SYNC_STATUS_CHANGED,
@@ -315,6 +442,21 @@ function handleMessage(message, sender, sendResponse) {
     return true; // Keep channel open for async response
   }
 
+  // Handle GET_INTELLIGENCE_REPORT message from Popup
+  if (message.type === "GET_INTELLIGENCE_REPORT" || message.type === "RECOMPUTE_INTELLIGENCE") {
+    const force = message.type === "RECOMPUTE_INTELLIGENCE";
+    if (globalThis.LeetCodeAutoSync.DeveloperIntelligenceService) {
+      globalThis.LeetCodeAutoSync.DeveloperIntelligenceService.getOrComputeIntelligence(message.payload || {}, force)
+        .then((report) => {
+          sendResponse({ status: "success", report: report.toJSONObject() });
+        })
+        .catch((err) => {
+          sendResponse({ status: "error", error: err.message });
+        });
+      return true; // Keep channel open for async response
+    }
+  }
+
   sendResponse({ status: "unknown_message" });
   return false;
 }
@@ -322,3 +464,46 @@ function handleMessage(message, sender, sendResponse) {
 chrome.runtime.onInstalled.addListener(handleInstalled);
 chrome.runtime.onStartup.addListener(handleInstalled);
 chrome.runtime.onMessage.addListener(handleMessage);
+
+// Handle Periodic Alarms (Streak Reminders, Daily Summaries, Sync intervals)
+if (typeof chrome !== "undefined" && chrome.alarms && chrome.alarms.onAlarm) {
+  chrome.alarms.onAlarm.addListener(async (alarm) => {
+    Logger.info(`Background: Received alarm '${alarm.name}'`);
+    const { DeveloperSettingsStore, DeveloperDataStore } = globalThis.LeetCodeAutoSync || {};
+    if (!DeveloperSettingsStore) return;
+
+    if (alarm.name === "streak_reminder_alarm") {
+      const streakNotif = DeveloperSettingsStore.getSetting("notifications.streakReminders", false);
+      if (streakNotif) {
+        const hour = new Date().getHours();
+        const stats = (DeveloperDataStore && DeveloperDataStore.stats) || {};
+        if (!stats.currentDayCompleted && hour >= 18) {
+          sendNotification("🔥 Maintain your LeetCode Streak!", `You haven't solved today's problem yet. Current streak: ${stats.officialStreak || 0} days.`);
+        }
+      }
+    } else if (alarm.name === "daily_summary_alarm") {
+      const dailyNotif = DeveloperSettingsStore.getSetting("notifications.dailySummary", true);
+      if (dailyNotif) {
+        const stats = (DeveloperDataStore && DeveloperDataStore.stats) || {};
+        sendNotification("🏆 LeetCode Daily Summary", `Total solved: ${stats.totalSolved || 0} · Streak: ${stats.officialStreak || 0} days.`);
+      }
+    } else if (alarm.name === "sync_interval_alarm") {
+      Logger.info("Background: Periodic sync interval triggered.");
+    }
+  });
+}
+
+// React to Settings Changes from Popup without requiring reload
+if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.developer_settings) {
+      Logger.info("Background: Detected developer_settings storage update. Re-syncing background settings and alarms.");
+      const { DeveloperSettingsStore } = globalThis.LeetCodeAutoSync || {};
+      if (DeveloperSettingsStore && typeof DeveloperSettingsStore.hydrateFromStorage === "function") {
+        DeveloperSettingsStore.hydrateFromStorage().then(() => {
+          setupAlarms();
+        });
+      }
+    }
+  });
+}

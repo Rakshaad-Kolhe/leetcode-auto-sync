@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "leetcode-auto-sync"
-version = "1.0.0"
-description = "Automated, intelligent LeetCode submission synchronization and documentation engine"
+name = "devpulse"
+version = "1.1.0"
+description = "DevPulse — Developer Intelligence for Competitive Programming"
 readme = "README.md"
 authors = [
     { name = "Rakshaad Kolhe", email = "rakshaadkolhe@gmail.com" }

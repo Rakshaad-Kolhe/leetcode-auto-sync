@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
-console.log("=== Running LeetCode Auto Sync Extension Regression Tests ===");
+console.log("=== Running DevPulse Extension Regression Tests ===");
 
 // 1. Setup browser mocks in global scope
 globalThis.window = globalThis;
@@ -27,7 +27,7 @@ globalThis.chrome = {
       sentMessages.push(msg);
       if (cb) cb({ status: "success" });
     },
-    getManifest: () => ({ version: "1.0.0" })
+    getManifest: () => ({ name: "DevPulse", version: "1.1.0" })
   }
 };
 
@@ -77,14 +77,63 @@ loadScript("submission/submission_state.js");
 loadScript("content/page_context.js");
 loadScript("models/submission_model.js");
 loadScript("models/accepted_submission.js");
+loadScript("models/developer_intelligence.js");
+loadScript("models/skill_tree.js");
+loadScript("models/knowledge_graph.js");
+loadScript("models/achievement.js");
+loadScript("models/roadmap.js");
+loadScript("models/milestone.js");
+loadScript("models/projection.js");
+loadScript("models/developer_view_model.js");
+loadScript("domain/data_provenance.js");
+loadScript("domain/developer_data_store.js");
+loadScript("services/authentication_service.js");
+loadScript("services/data_normalization_service.js");
+loadScript("services/canonical_identity_resolver.js");
+loadScript("services/metric_validation_service.js");
+loadScript("services/leetcode_graphql_service.js");
+loadScript("services/repository_scanner_service.js");
+loadScript("services/repository_health_calculator.js");
+loadScript("services/snapshot_engine_service.js");
+loadScript("services/developer_view_model_builder.js");
+loadScript("models/developer_report.js");
+loadScript("intelligence/skill_tree_service.js");
+loadScript("intelligence/journey_service.js");
+loadScript("intelligence/pattern_service.js");
+loadScript("intelligence/interview_matrix_service.js");
+loadScript("intelligence/recommendation_service.js");
+loadScript("intelligence/achievement_service.js");
+loadScript("intelligence/projection_service.js");
+loadScript("intelligence/repository_audit_service.js");
+loadScript("intelligence/developer_intelligence_service.js");
+loadScript("ui/tokens/theme.js");
+loadScript("ui/components/header_component.js");
+loadScript("ui/components/today_hero_component.js");
+loadScript("ui/components/next_action_component.js");
+loadScript("ui/components/progress_component.js");
+loadScript("ui/components/heatmap_component.js");
+loadScript("ui/components/daily_challenge_component.js");
+loadScript("ui/components/status_footer_component.js");
 loadScript("parser/metadata_parser.js");
 loadScript("parser/solution_parser.js");
 loadScript("services/metadata_service.js");
 loadScript("services/solution_service.js");
 loadScript("services/backend_service.js");
+loadScript("models/diagnostic_models.js");
+loadScript("domain/diagnostic_event_store.js");
+loadScript("services/diagnostics_service.js");
+loadScript("ui/components/diagnostics_screen_component.js");
+loadScript("analytics/analytics_models.js");
+loadScript("analytics/skill_analyzer.js");
+loadScript("analytics/recommendation_engine.js");
+loadScript("analytics/analytics_engine.js");
+loadScript("domain/developer_settings_store.js");
+loadScript("ui/components/analytics_screen_component.js");
+loadScript("ui/components/repo_screen_component.js");
+loadScript("ui/components/settings_screen_component.js");
 
 // Resolve symbols from global LeetCodeAutoSync object
-const { SubmissionState, PageContext, MetadataService, SolutionParser, SolutionService, BackendService, Verdicts } = globalThis.LeetCodeAutoSync;
+const { SubmissionState, PageContext, MetadataService, SolutionParser, SolutionService, BackendService, DeveloperIntelligenceService, Verdicts } = globalThis.LeetCodeAutoSync;
 
 let testFailures = 0;
 function assert(condition, message) {
@@ -341,6 +390,79 @@ async function runAllTests() {
     const invalidRes = await BackendService.submitSubmission(invalidSubObj);
     assert(invalidRes.success === false, "Invalid payload correctly rejected before dispatching network request");
     assert(invalidRes.error.includes("Payload validation failed"), "Returns structured validation error");
+    globalThis.fetch = originalFetch;
+
+    // Test 15: Developer Intelligence Score Computation Engine
+    console.log("\n--- Test 15: Developer Intelligence Score Computation Engine ---");
+    const dataStore = globalThis.LeetCodeAutoSync.DeveloperDataStore;
+    dataStore.stats = { totalSolved: 42, easy: 18, medium: 18, hard: 6, currentStreak: 7, totalActiveDays: 30 };
+    dataStore.repository = { configured: true, repoPath: "Leetcode-solutions", syncedCount: 40, hasReadme: true, metadataCompleteness: 0.95 };
+    const intelReport = DeveloperIntelligenceService.computeReport();
+    assert(intelReport.overallScore > 0, "DeveloperIntelligenceService calculates positive overall score");
+    assert(intelReport.readinessLevel !== undefined, "DeveloperIntelligenceService computes interview readiness stage");
+    assert(intelReport.categoryScores.problemDiversity.score > 0, "DeveloperIntelligenceService computes Problem Diversity score");
+    assert(intelReport.categoryScores.difficultyBalance.score > 0, "DeveloperIntelligenceService computes Difficulty Balance score");
+    assert(intelReport.categoryScores.repositoryCompleteness.score > 0, "DeveloperIntelligenceService computes Repository Completeness score");
+    // Test 16: Phase 2 Developer Intelligence OS Sub-Services
+    console.log("\n--- Test 16: Phase 2 Developer Intelligence OS Sub-Services ---");
+    const { SkillTreeService, JourneyService, PatternService, InterviewMatrixService, AchievementService, ProjectionService, RepositoryAuditService } = globalThis.LeetCodeAutoSync;
+    const tree = SkillTreeService.buildSkillTree({});
+    assert(tree.name.includes("Algorithms"), "SkillTreeService integration test passed");
+    const timeline = JourneyService.buildTimeline({});
+    assert(timeline.length > 0, "JourneyService integration test passed");
+    const patterns = PatternService.detectPatterns("while(left < right) { mid = left + (right-left)/2; }");
+    assert(patterns.some(p => p.name === "Binary Search"), "PatternService integration test passed");
+    const matrix = InterviewMatrixService.computeCompanyReadiness({});
+    assert(matrix.length >= 10, "InterviewMatrixService integration test passed");
+    const achievements = AchievementService.evaluateAchievements({});
+    assert(achievements.length >= 8, "AchievementService integration test passed");
+    const projections = ProjectionService.computeFutureProjections({});
+    assert(projections.length > 0, "ProjectionService integration test passed");
+    const audit = RepositoryAuditService.performAudit({});
+    // Test 17: Phase 3 Real Data Platform Domain & Services
+    console.log("\n--- Test 17: Phase 3 Real Data Platform Domain & Services ---");
+    // Test 18: Phase 4 Data Provenance & Metric Validation Engine
+    console.log("\n--- Test 18: Phase 4 Data Provenance & Metric Validation Engine ---");
+    const { DataProvenance, AuthenticationService, DataNormalizationService, MetricValidationService } = globalThis.LeetCodeAutoSync;
+    assert(DataProvenance !== undefined, "DataProvenance class initialized");
+    assert(AuthenticationService !== undefined, "AuthenticationService initialized");
+    assert(DataNormalizationService !== undefined, "DataNormalizationService initialized");
+    assert(MetricValidationService !== undefined, "MetricValidationService initialized");
+
+    // Test 19: DeveloperViewModel & ViewModelBuilder Presentation Architecture
+    console.log("\n--- Test 19: DeveloperViewModel Presentation Architecture ---");
+    const { DeveloperViewModel, DeveloperViewModelBuilder, DeveloperDataStore } = globalThis.LeetCodeAutoSync;
+    assert(DeveloperViewModel !== undefined, "DeveloperViewModel class initialized");
+    assert(DeveloperViewModelBuilder !== undefined, "DeveloperViewModelBuilder initialized");
+    const vmInstance = DeveloperViewModelBuilder.buildViewModel(DeveloperDataStore);
+    assert(vmInstance !== undefined && typeof vmInstance === "object", "DeveloperViewModelBuilder produces DeveloperViewModel instance");
+
+    // Test 20: Step 11 Live Data Parity & RepositoryHealthCalculator
+    console.log("\n--- Test 20: Live Data Parity & RepositoryHealthCalculator ---");
+    const { RepositoryHealthCalculator } = globalThis.LeetCodeAutoSync;
+    assert(RepositoryHealthCalculator !== undefined, "RepositoryHealthCalculator initialized");
+    const healthCalc = RepositoryHealthCalculator.calculateHealth(DeveloperDataStore.repository);
+    // Test 21: Enterprise CuratedListsService Unit Suite
+    console.log("\n--- Test 21: Enterprise CuratedListsService Unit Suite ---");
+    const { runCuratedListsServiceTests } = require("./test_curated_lists_service.js");
+    runCuratedListsServiceTests();
+
+    // Test 22: Analytics Engine & Repo UI Suite
+    console.log("\n--- Test 22: Personalized Analytics & Repo UI Suite ---");
+    require("./test_analytics_models.js").runTests();
+    require("./test_skill_analyzer.js").runTests();
+    require("./test_recommendation_engine.js").runTests();
+    require("./test_analytics_engine.js").runTests();
+    require("./test_analytics_ui.js").runTests();
+    require("./test_repo_ui.js").runTests();
+
+    // Test 23: Data-Driven Diagnostics Tab & Service Suite
+    console.log("\n--- Test 23: Operational Diagnostics Tab & Service Suite ---");
+    await require("./test_diagnostics.js").runTests();
+
+    // Test 24: Fully Functional Settings Tab & DeveloperSettingsStore Suite
+    console.log("\n--- Test 24: Fully Functional Settings Tab & Store Suite ---");
+    await require("./test_settings.js").runTests();
 
     // Restore original global fetch
     globalThis.fetch = originalFetch;

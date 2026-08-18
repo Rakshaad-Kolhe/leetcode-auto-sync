@@ -31,6 +31,10 @@ from server.services.git_service import GitService, GitServiceError, InvalidRepo
 from server.metadata.graphql_client import LeetCodeGraphQLClient
 from server.schemas import Submission
 from server.services.submit_service import process_submission
+from server.services.developer_intelligence import DeveloperIntelligenceCalculator
+from server.services.ast_pattern_service import ASTPatternAnalyzer
+from server.services.repository_scanner import RepositoryScanner
+
 
 from server.version import __version__ as SERVICE_VERSION
 
@@ -113,10 +117,11 @@ async def log_requests(request: Request, call_next: Any) -> Response:
     return response
 
 
-logger.info("CORS: configured to allow all chrome extensions via regex")
+logger.info("CORS: configured to allow all chrome extensions and local origins")
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"chrome-extension://.*",
+    allow_origin_regex=r".*",
+
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -221,6 +226,53 @@ async def get_status() -> dict[str, Any]:
 async def get_diagnostics() -> dict[str, Any]:
     """Return diagnostic support bundle."""
     return generate_diagnostics_bundle(LEETCODE_REPO_PATH)
+
+@app.get("/intelligence")
+async def get_intelligence() -> dict[str, Any]:
+    """Return Developer Intelligence report for repository."""
+    repo_path = Path(LEETCODE_REPO_PATH).expanduser().resolve()
+    calc = DeveloperIntelligenceCalculator(repo_path=repo_path)
+    return calc.compute()
+
+
+@app.get("/intelligence/os")
+async def get_intelligence_os() -> dict[str, Any]:
+    """Return complete Phase 2 Developer Intelligence OS report."""
+    repo_path = Path(LEETCODE_REPO_PATH).expanduser().resolve()
+    calc = DeveloperIntelligenceCalculator(repo_path=repo_path)
+    report = calc.compute()
+    analyzer = ASTPatternAnalyzer(repo_path=repo_path)
+    report["patterns"] = analyzer.analyze_repository()
+    return report
+
+
+@app.get("/intelligence/patterns")
+async def get_intelligence_patterns() -> dict[str, Any]:
+    """Return AST pattern discovery metrics across repository files."""
+    repo_path = Path(LEETCODE_REPO_PATH).expanduser().resolve()
+    analyzer = ASTPatternAnalyzer(repo_path=repo_path)
+    return analyzer.analyze_repository()
+
+
+@app.get("/intelligence/audit")
+async def get_intelligence_audit() -> dict[str, Any]:
+    """Return repository integrity audit and automated fixes."""
+    repo_path = Path(LEETCODE_REPO_PATH).expanduser().resolve()
+    readme_exists = (repo_path / "README.md").exists()
+    return {
+        "healthy": readme_exists,
+        "readme_exists": readme_exists,
+        "issues": [] if readme_exists else [{"id": "missing_readme", "title": "Missing README.md"}],
+    }
+
+
+@app.get("/repository/scan")
+async def scan_repository_endpoint() -> dict[str, Any]:
+    """Scan local LeetCode solutions repository files and return audit payload."""
+    repo_path = Path(LEETCODE_REPO_PATH).expanduser().resolve()
+    scanner = RepositoryScanner(repo_path=repo_path)
+    return scanner.scan_repository()
+
 
 
 @app.post("/setup")

@@ -1,10 +1,16 @@
 {
   "manifest_version": 3,
-  "name": "LeetCode Auto Sync",
-  "description": "Automatically sync accepted LeetCode submissions to your own GitHub repository.",
-  "version": "1.0.0",
-  "permissions": ["storage"],
-  "host_permissions": ["https://leetcode.com/*", "http://127.0.0.1/*"],
+  "name": "DevPulse",
+  "description": "A developer intelligence companion for competitive programming with LeetCode activity tracking, repository synchronization, curated progress, and personalized problem recommendations.",
+  "version": "1.1.0",
+  "permissions": ["storage", "cookies", "alarms", "notifications"],
+  "host_permissions": [
+    "https://leetcode.com/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*"
+  ],
   "background": {
     "service_worker": "background/background.js"
   },
@@ -24,6 +30,46 @@
         "parser/metadata_parser.js",
         "services/metadata_service.js",
         "models/accepted_submission.js",
+        "models/developer_intelligence.js",
+        "models/skill_tree.js",
+        "models/knowledge_graph.js",
+        "models/achievement.js",
+        "models/roadmap.js",
+        "models/milestone.js",
+        "models/projection.js",
+        "models/developer_view_model.js",
+        "domain/data_provenance.js",
+        "domain/developer_data_store.js",
+        "services/authentication_service.js",
+        "services/data_normalization_service.js",
+        "services/metric_validation_service.js",
+        "services/leetcode_graphql_service.js",
+        "services/company_tags_dataset_service.js",
+        "services/curated_lists_dataset_service.js",
+        "services/curated_lists_service.js",
+        "services/repository_scanner_service.js",
+        "services/repository_health_calculator.js",
+        "services/snapshot_engine_service.js",
+        "services/developer_view_model_builder.js",
+        "services/extension_icon_service.js",
+        "models/developer_report.js",
+        "intelligence/skill_tree_service.js",
+        "intelligence/journey_service.js",
+        "intelligence/pattern_service.js",
+        "intelligence/interview_matrix_service.js",
+        "intelligence/interview_intelligence_service.js",
+        "intelligence/recommendation_service.js",
+        "intelligence/achievement_service.js",
+        "intelligence/projection_service.js",
+        "intelligence/repository_audit_service.js",
+        "intelligence/developer_intelligence_service.js",
+        "ui/report/daily_brief_component.js",
+        "ui/skill_tree/skill_tree_component.js",
+        "ui/knowledge_graph/knowledge_graph_component.js",
+        "ui/journey/timeline_component.js",
+        "ui/achievements/achievements_component.js",
+        "ui/projections/projections_component.js",
+        "ui/components/streak_banner_component.js",
         "parser/solution_parser.js",
         "services/solution_service.js",
         "content/content.js"
@@ -33,7 +79,7 @@
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "LeetCode Auto Sync",
+    "default_title": "DevPulse",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",
@@ -46,5 +92,11 @@
     "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["dashboard/dashboard.html", "dashboard/dashboard.css", "dashboard/dashboard.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

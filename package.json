@@ -1,11 +1,11 @@
 {
-  "name": "leetcode-auto-sync-extension",
-  "version": "1.0.0",
-  "description": "Chrome Extension for LeetCode Auto Sync",
+  "name": "devpulse",
+  "version": "1.1.0",
+  "description": "DevPulse — Developer Intelligence for Competitive Programming",
   "main": "extension/background/service_worker.js",
   "scripts": {
-    "build": "node scripts/package.js || python scripts/package.py",
-    "package": "node scripts/package.js || python scripts/package.py"
+    "build": "python scripts/package.py",
+    "package": "python scripts/package.py"
   },
   "keywords": [
     "leetcode",

@@ -1,6 +1,8 @@
 # Troubleshooting Guide 🔍
 
-Common issues and solutions for **LeetCode Auto Sync**.
+
+Common issues and solutions for **DevPulse**.
+
 
 ---
 

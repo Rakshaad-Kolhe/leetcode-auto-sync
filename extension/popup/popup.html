@@ -3,189 +3,171 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>LeetCode Auto Sync</title>
+    <title>DevPulse</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
-    <main class="popup-shell">
-      <header class="popup-header">
-        <div class="logo-container">
-          <img class="popup-icon" src="../icons/icon-48.png" alt="Logo" width="36" height="36">
-          <div class="logo-glow"></div>
-        </div>
-        <div class="header-text">
-          <h1>LeetCode Auto Sync</h1>
-          <span id="version" class="version">Version --</span>
-        </div>
+    <main class="app-container">
+
+      <!-- 1. HEADER (Avatar + Username left / Icons right - Shared) -->
+      <header id="header-container">
+        <!-- Rendered by HeaderComponent -->
       </header>
 
-      <!-- Status Indicator -->
-      <section class="status-indicator" aria-label="Extension status">
-        <div class="status-dot-container">
-          <div class="status-dot pulse"></div>
-        </div>
-        <div class="status-info">
-          <span class="status-title">Extension Status</span>
-          <span id="extension-status" class="status-text">Active</span>
-        </div>
-      </section>
-
-      <!-- Page Context Card -->
-      <section class="context-card" aria-label="Page Context">
-        <h2>Current Page Context</h2>
-        
-        <div class="context-item">
-          <span class="context-label">Page Type</span>
-          <span id="page-type" class="badge badge-unknown">UNKNOWN</span>
+      <!-- DASHBOARD VIEW -->
+      <div id="dashboard-view" class="tab-view active">
+        <!-- 0. STREAK BANNER -->
+        <div id="streak-banner-container">
+          <!-- Rendered by StreakBannerComponent (conditionally shown) -->
         </div>
 
-        <div id="slug-container" class="context-item hidden">
-          <span class="context-label">Problem Slug</span>
-          <span id="problem-slug" class="slug-pill">none</span>
-        </div>
+        <!-- 2. STATS BAR (4-Column: Solved / Easy / Med / Hard) -->
+        <section id="today-hero-container" aria-labelledby="solved-summary-title">
+          <!-- Rendered by SolvedSummaryComponent / TodayHeroComponent -->
+        </section>
 
-        <div class="context-item url-item">
-          <span class="context-label">Current URL</span>
-          <span id="current-url" class="url-text" title="Not on LeetCode">Not on LeetCode</span>
-        </div>
-      </section>
+        <!-- 3. 30-DAY ACTIVITY HEATMAP -->
+        <section id="heatmap-container" aria-labelledby="heatmap-title">
+          <!-- Rendered by ActivityHeatmapComponent / HeatmapComponent -->
+        </section>
 
-      <!-- Submission Status Card -->
-      <section class="context-card" aria-label="Submission Status">
-        <h2>Submission Status</h2>
-        
-        <div class="context-item">
-          <span class="context-label">State</span>
-          <span id="submission-state" class="badge state-idle">IDLE</span>
-        </div>
+        <!-- 4. YOUR PROGRESS -->
+        <section id="progress-container" aria-labelledby="progress-title">
+          <!-- Rendered by ProgressComponent -->
+        </section>
 
-        <div id="verdict-container" class="context-item hidden">
-          <span class="context-label">Verdict</span>
-          <span id="submission-verdict" class="badge badge-unknown">Unknown</span>
-        </div>
-      </section>
+        <!-- 5. DAILY CHALLENGE -->
+        <section id="daily-challenge-container" aria-labelledby="challenge-title">
+          <!-- Rendered by DailyChallengeComponent -->
+        </section>
 
-      <!-- Accepted Problem Details Card -->
-      <section id="metadata-card" class="context-card hidden" aria-label="Problem Details">
-        <h2>Accepted Problem Details</h2>
-        
-        <div class="context-item">
-          <span class="context-label">Title</span>
-          <span id="problem-title-display" class="metadata-text">--</span>
-        </div>
+        <!-- 6. PROBLEMS EXPLORER -->
+        <section id="next-action-container" aria-labelledby="next-action-title">
+          <!-- Rendered by ProblemsExplorerComponent / NextActionComponent -->
+        </section>
+      </div>
 
-        <div class="context-item">
-          <span class="context-label">Problem ID</span>
-          <span id="problem-id-display" class="slug-pill">--</span>
-        </div>
+      <!-- ACTIVITY VIEW -->
+      <div id="activity-view" class="tab-view" style="display: none;">
+        <section id="activity-screen-container" aria-label="Activity Screen">
+          <!-- Rendered by ActivityScreenComponent -->
+        </section>
+      </div>
 
-        <div class="context-item">
-          <span class="context-label">Difficulty</span>
-          <span id="problem-difficulty-display" class="badge badge-unknown">--</span>
-        </div>
+      <!-- ANALYTICS VIEW -->
+      <div id="analytics-view" class="tab-view" style="display: none;">
+        <section id="analytics-screen-container" aria-label="Analytics Screen">
+          <!-- Rendered by AnalyticsScreenComponent -->
+        </section>
+      </div>
 
-        <div class="context-item">
-          <span class="context-label">Language</span>
-          <span id="problem-language-display" class="slug-pill">--</span>
-        </div>
+      <!-- REPO VIEW -->
+      <div id="repo-view" class="tab-view" style="display: none;">
+        <section id="repo-screen-container" aria-label="Repo Screen">
+          <!-- Rendered by RepoScreenComponent -->
+        </section>
+      </div>
 
-        <div class="context-item">
-          <span class="context-label">Solution Size</span>
-          <span id="solution-size-display" class="slug-pill">--</span>
-        </div>
+      <!-- DIAGNOSTICS VIEW -->
+      <div id="diagnostics-view" class="tab-view" style="display: none;">
+        <section id="diagnostics-screen-container" aria-label="Diagnostics Screen">
+          <!-- Rendered by DiagnosticsScreenComponent -->
+        </section>
+      </div>
 
-        <div class="context-item">
-          <span class="context-label">Extraction Status</span>
-          <span id="extraction-status-display" class="badge badge-unknown">--</span>
-        </div>
+      <!-- SETTINGS VIEW -->
+      <div id="settings-view" class="tab-view" style="display: none;">
+        <section id="settings-screen-container" aria-label="Settings Screen">
+          <!-- Rendered by SettingsScreenComponent -->
+        </section>
+      </div>
 
-        <div class="context-item url-item">
-          <span class="context-label">Problem URL</span>
-          <a id="problem-url-display" class="url-text" href="#" target="_blank">--</a>
-        </div>
-      </section>
-
-      <!-- Backend Synchronization Card -->
-      <section class="context-card" aria-label="Sync Status">
-        <h2>Backend Synchronization</h2>
-        
-        <div class="context-item">
-          <span class="context-label">Backend Connection</span>
-          <span id="backend-conn-status" class="badge badge-unknown">Checking...</span>
-        </div>
-
-        <div class="context-item">
-          <span class="context-label">Latest Sync</span>
-          <span id="latest-sync-status" class="badge badge-unknown">None</span>
-        </div>
-
-        <div id="sync-time-container" class="context-item hidden">
-          <span class="context-label">Synced At</span>
-          <span id="latest-sync-time" class="slug-pill">--</span>
-        </div>
-
-        <div id="sync-error-container" class="context-item hidden">
-          <span class="context-label">Sync Error</span>
-          <span id="latest-sync-error" class="sync-error-text">--</span>
-        </div>
-
-        <!-- Manual control buttons -->
-        <div style="display: flex; gap: 8px; margin-top: 12px;">
-          <button id="check-backend-btn" class="badge badge-contest" style="flex: 1; border: none; cursor: pointer; padding: 6px; border-radius: 4px; font-weight: 600; font-size: 11px; text-align: center;">Check Backend</button>
-          <button id="retry-sync-btn" class="badge badge-unknown" style="flex: 1; border: none; cursor: pointer; padding: 6px; border-radius: 4px; font-weight: 600; font-size: 11px; text-align: center;">Retry Last Sync</button>
-        </div>
-      </section>
-
-      <!-- Configuration Settings Card -->
-      <section class="context-card" aria-label="Settings">
-        <h2>Configuration Settings</h2>
-        
-        <div class="context-item">
-          <label for="backend-url-input" class="context-label">Backend URL</label>
-          <input type="text" id="backend-url-input" class="slug-pill" value="http://127.0.0.1:8000" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #e4e4e7; font-family: inherit; font-size: 11px; padding: 4px 8px; border-radius: 4px; text-align: left; width: 140px;" />
-        </div>
-
-        <div style="display: flex; gap: 8px; margin-top: 10px;">
-          <button id="save-settings-btn" class="badge badge-contest" style="width: 100%; border: none; cursor: pointer; padding: 6px; border-radius: 4px; font-weight: 600; font-size: 11px; text-align: center;">Save Settings</button>
-        </div>
-      </section>
-
-      <!-- Backend Diagnostics Card -->
-      <section class="context-card" aria-label="Diagnostics Info">
-        <h2>Diagnostics & System Info</h2>
-        
-        <div class="context-item">
-          <span class="context-label">Extension Version</span>
-          <span id="diag-ext-version" class="slug-pill">v1.0.0</span>
-        </div>
-
-        <div class="context-item">
-          <span class="context-label">Backend Version</span>
-          <span id="diag-back-version" class="slug-pill">--</span>
-        </div>
-
-        <div class="context-item">
-          <span class="context-label">Backend Target</span>
-          <span id="diag-back-url" class="slug-pill" style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">--</span>
-        </div>
-
-        <div class="context-item">
-          <span class="context-label">Browser Client</span>
-          <span id="diag-browser-version" class="slug-pill" style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">--</span>
-        </div>
-
-        <div style="display: flex; gap: 8px; margin-top: 10px;">
-          <button id="copy-diag-btn" class="badge badge-contest" style="width: 100%; border: none; cursor: pointer; padding: 6px; border-radius: 4px; font-weight: 600; font-size: 11px; text-align: center;">Copy Diagnostics Report</button>
-        </div>
-      </section>
-
-      <!-- Footer/Actions -->
-      <footer class="popup-footer">
-        <p class="description-text">Updates automatically as you use LeetCode.</p>
+      <!-- 7. BOTTOM NAVIGATION (Shared) -->
+      <footer id="status-footer-container">
+        <!-- Rendered by BottomNavigationComponent / StatusFooterComponent -->
       </footer>
+
     </main>
+
+    <!-- Core Dependencies -->
     <script src="../shared/constants.js"></script>
     <script src="../shared/logger.js"></script>
+    <script src="../models/metadata_snapshot.js"></script>
+    <script src="../models/submission_model.js"></script>
+    <script src="../models/accepted_submission.js"></script>
+    <script src="../models/developer_intelligence.js"></script>
+    <script src="../models/developer_report.js"></script>
+    <script src="../models/skill_tree.js"></script>
+    <script src="../models/knowledge_graph.js"></script>
+    <script src="../models/achievement.js"></script>
+    <script src="../models/roadmap.js"></script>
+    <script src="../models/milestone.js"></script>
+    <script src="../models/projection.js"></script>
+    <script src="../models/developer_view_model.js"></script>
+    <script src="../models/diagnostic_models.js"></script>
+    <script src="../domain/data_provenance.js"></script>
+    <script src="../domain/developer_data_store.js"></script>
+    <script src="../domain/diagnostic_event_store.js"></script>
+    <script src="../domain/developer_settings_store.js"></script>
+
+    <!-- Parsers & Services -->
+    <script src="../parser/metadata_parser.js"></script>
+    <script src="../parser/solution_parser.js"></script>
+    <script src="../services/metadata_service.js"></script>
+    <script src="../services/solution_service.js"></script>
+    <script src="../services/backend_service.js"></script>
+    <script src="../services/authentication_service.js"></script>
+    <script src="../services/data_normalization_service.js"></script>
+    <script src="../services/canonical_identity_resolver.js"></script>
+    <script src="../services/metric_validation_service.js"></script>
+    <script src="../services/leetcode_graphql_service.js"></script>
+    <script src="../services/company_tags_dataset_service.js"></script>
+    <script src="../services/curated_lists_dataset_service.js"></script>
+    <script src="../services/curated_lists_service.js"></script>
+    <script src="../services/repository_scanner_service.js"></script>
+    <script src="../services/repository_health_calculator.js"></script>
+    <script src="../services/snapshot_engine_service.js"></script>
+    <script src="../services/developer_view_model_builder.js"></script>
+    <script src="../services/extension_icon_service.js"></script>
+    <script src="../services/diagnostics_service.js"></script>
+    <script src="../intelligence/skill_tree_service.js"></script>
+    <script src="../intelligence/journey_service.js"></script>
+    <script src="../intelligence/pattern_service.js"></script>
+    <script src="../intelligence/interview_matrix_service.js"></script>
+    <script src="../intelligence/interview_intelligence_service.js"></script>
+    <script src="../intelligence/recommendation_service.js"></script>
+    <script src="../intelligence/achievement_service.js"></script>
+    <script src="../intelligence/projection_service.js"></script>
+    <script src="../intelligence/repository_audit_service.js"></script>
+    <script src="../intelligence/developer_intelligence_service.js"></script>
+
+    <!-- Analytics Engine -->
+    <script src="../analytics/analytics_models.js"></script>
+    <script src="../analytics/skill_analyzer.js"></script>
+    <script src="../analytics/recommendation_engine.js"></script>
+    <script src="../analytics/analytics_engine.js"></script>
+
+    <!-- UI Components -->
+    <script src="../ui/components/streak_banner_component.js"></script>
+    <script src="../ui/components/header_component.js"></script>
+    <script src="../ui/components/solved_summary_component.js"></script>
+    <script src="../ui/components/today_hero_component.js"></script>
+    <script src="../ui/components/problems_explorer_component.js"></script>
+    <script src="../ui/components/next_action_component.js"></script>
+    <script src="../ui/components/progress_component.js"></script>
+    <script src="../ui/components/activity_heatmap_component.js"></script>
+    <script src="../ui/components/heatmap_component.js"></script>
+    <script src="../ui/components/daily_challenge_component.js"></script>
+    <script src="../ui/components/bottom_navigation_component.js"></script>
+    <script src="../ui/components/status_footer_component.js"></script>
+    <script src="../ui/components/activity_screen_component.js"></script>
+    <script src="../ui/components/analytics_screen_component.js"></script>
+    <script src="../ui/components/repo_screen_component.js"></script>
+    <script src="../ui/components/diagnostics_screen_component.js"></script>
+    <script src="../ui/components/settings_screen_component.js"></script>
+
+    <!-- Entry -->
     <script src="popup.js"></script>
   </body>
 </html>

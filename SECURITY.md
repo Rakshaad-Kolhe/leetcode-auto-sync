@@ -2,10 +2,10 @@
 
 ## Reporting Vulnerabilities
 
-If you discover a security vulnerability in LeetCode Auto Sync, please report it privately:
+If you discover a security vulnerability in DevPulse, please report it privately:
 
 - **Email**: `rakshaadkolhe@gmail.com`
-- **Subject**: `[SECURITY] Vulnerability Report - LeetCode Auto Sync`
+- **Subject**: `[SECURITY] Vulnerability Report - DevPulse`
 
 Please do NOT report security vulnerabilities via public GitHub issues.
 

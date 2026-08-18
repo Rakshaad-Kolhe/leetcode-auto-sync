@@ -146,23 +146,37 @@
     async checkBackend() {
       Logger.info("BackendService: Checking health connectivity status...");
       const { backendUrl } = await getBackendSettings();
-      try {
-        const response = await fetchWithTimeout(`${backendUrl}/health`, {
-          method: "GET",
-          headers: {
-            "Accept": "application/json"
-          }
-        }, HEALTH_TIMEOUT_MS);
 
-        if (response.ok) {
-          const data = await response.json();
-          return normalizeResponse(true, data, null, response.status);
-        }
-
-        return normalizeResponse(false, null, `Health check returned status ${response.status}`, response.status);
-      } catch (err) {
-        return normalizeError(err);
+      const candidateUrls = [backendUrl];
+      if (backendUrl.includes("127.0.0.1")) {
+        candidateUrls.push(backendUrl.replace("127.0.0.1", "localhost"));
+      } else if (backendUrl.includes("localhost")) {
+        candidateUrls.push(backendUrl.replace("localhost", "127.0.0.1"));
       }
+
+      let lastErr = null;
+      for (const url of candidateUrls) {
+        try {
+          const response = await fetchWithTimeout(`${url}/health`, {
+            method: "GET",
+            headers: {
+              "Accept": "application/json"
+            }
+          }, HEALTH_TIMEOUT_MS);
+
+          if (response.ok) {
+            const data = await response.json();
+            if (url !== backendUrl && typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+              chrome.storage.local.set({ backendUrl: url });
+            }
+            return normalizeResponse(true, data, null, response.status);
+          }
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+
+      return normalizeError(lastErr || new Error("Backend server unreachable"));
     },
 
     /**
