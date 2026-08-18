@@ -35,6 +35,7 @@ from server.services.developer_intelligence import DeveloperIntelligenceCalculat
 from server.services.ast_pattern_service import ASTPatternAnalyzer
 from server.services.repository_scanner import RepositoryScanner
 
+
 from server.version import __version__ as SERVICE_VERSION
 
 SERVICE_NAME = "leetcode-auto-sync"
@@ -120,6 +121,7 @@ logger.info("CORS: configured to allow all chrome extensions and local origins")
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r".*",
+
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -225,7 +227,6 @@ async def get_diagnostics() -> dict[str, Any]:
     """Return diagnostic support bundle."""
     return generate_diagnostics_bundle(LEETCODE_REPO_PATH)
 
-
 @app.get("/intelligence")
 async def get_intelligence() -> dict[str, Any]:
     """Return Developer Intelligence report for repository."""
@@ -271,6 +272,7 @@ async def scan_repository_endpoint() -> dict[str, Any]:
     repo_path = Path(LEETCODE_REPO_PATH).expanduser().resolve()
     scanner = RepositoryScanner(repo_path=repo_path)
     return scanner.scan_repository()
+
 
 
 @app.post("/setup")
