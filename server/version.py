@@ -1,4 +1,4 @@
-"""Single Source of Truth version utility for LeetCode Auto Sync."""
+"""Single Source of Truth version utility for DevPulse."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ def get_version() -> str:
         match = re.search(r'^\s*version\s*=\s*"([^"]+)"', text, re.MULTILINE)
         if match:
             return match.group(1)
-    return "1.0.0"
+    return "1.1.0"
 
 
 __version__ = get_version()

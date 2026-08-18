@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Developer Intelligence OS — Full Workspace</title>
+    <link rel="stylesheet" href="dashboard.css">
+  </head>
+  <body>
+    <div class="dashboard-layout">
+      <!-- Sidebar Navigation -->
+      <aside class="dashboard-sidebar">
+        <div class="sidebar-brand">
+          <img src="../icons/icon-48.png" alt="Logo" width="28" height="28">
+          <span class="brand-name">Developer Intelligence OS</span>
+        </div>
+        <nav class="sidebar-nav">
+          <button class="nav-item active" data-view="view-overview">📊 Overview</button>
+          <button class="nav-item" data-view="view-skill-tree">🌳 Skill Tree</button>
+          <button class="nav-item" data-view="view-patterns">⚡ AST Pattern Explorer</button>
+          <button class="nav-item" data-view="view-matrix">🏢 Company Matrix</button>
+          <button class="nav-item" data-view="view-graph">🌐 Knowledge Graph</button>
+          <button class="nav-item" data-view="view-journey">📅 Journey Timeline</button>
+          <button class="nav-item" data-view="view-badges">🏆 Achievements</button>
+          <button class="nav-item" data-view="view-audit">📂 Repository Audit</button>
+          <button class="nav-item" data-view="view-diagnostics">⚙ System Diagnostics</button>
+        </nav>
+        <div class="sidebar-footer">
+          <span class="version-tag">Version 3.0.0 Real Data Platform</span>
+        </div>
+      </aside>
+
+      <!-- Main Workspace Area -->
+      <main class="dashboard-main">
+        <!-- Overview View -->
+        <div id="view-overview" class="view-content active">
+          <header class="view-header">
+            <h1>Developer Intelligence Overview</h1>
+            <button id="refresh-dashboard-btn" class="dash-action-btn">Recompute Report</button>
+          </header>
+          <div class="overview-grid">
+            <div id="hero-card-container"></div>
+            <div id="dna-container"></div>
+          </div>
+        </div>
+
+        <!-- Skill Tree View -->
+        <div id="view-skill-tree" class="view-content">
+          <header class="view-header">
+            <h1>Interactive Expandable Skill Tree</h1>
+          </header>
+          <div id="dash-skill-tree-container"></div>
+        </div>
+
+        <!-- AST Pattern Explorer View -->
+        <div id="view-patterns" class="view-content">
+          <header class="view-header">
+            <h1>Multi-Language AST Pattern Explorer</h1>
+          </header>
+          <div id="dash-patterns-container" class="patterns-grid"></div>
+        </div>
+
+        <!-- Company Matrix View -->
+        <div id="view-matrix" class="view-content">
+          <header class="view-header">
+            <h1>Target Company Interview Readiness Matrix</h1>
+          </header>
+          <div id="dash-matrix-container" class="matrix-grid"></div>
+        </div>
+
+        <!-- Knowledge Graph View -->
+        <div id="view-graph" class="view-content">
+          <header class="view-header">
+            <h1>Relationship Knowledge Graph Network</h1>
+          </header>
+          <div id="dash-graph-container"></div>
+        </div>
+
+        <!-- Journey View -->
+        <div id="view-journey" class="view-content">
+          <header class="view-header">
+            <h1>Chronological Learning Journey Timeline</h1>
+          </header>
+          <div id="dash-journey-container"></div>
+        </div>
+
+        <!-- Achievements View -->
+        <div id="view-badges" class="view-content">
+          <header class="view-header">
+            <h1>Engineering Achievement Badges</h1>
+          </header>
+          <div id="dash-badges-container"></div>
+        </div>
+
+        <!-- Audit View -->
+        <div id="view-audit" class="view-content">
+          <header class="view-header">
+            <h1>Repository Evolution & Deep File Audit</h1>
+            <button id="dash-run-audit-btn" class="dash-action-btn">Run 1-Click File Audit</button>
+          </header>
+          <div id="dash-audit-container"></div>
+        </div>
+
+        <!-- Diagnostics View -->
+        <div id="view-diagnostics" class="view-content">
+          <header class="view-header">
+            <h1>System Diagnostics & Telemetry Dashboard</h1>
+          </header>
+          <div id="dash-diagnostics-container" class="diag-cards-grid"></div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Scripts Loading in Dependency Order -->
+    <script src="../shared/constants.js"></script>
+    <script src="../shared/logger.js"></script>
+    <script src="../models/metadata_snapshot.js"></script>
+    <script src="../models/submission_model.js"></script>
+    <script src="../models/accepted_submission.js"></script>
+    <script src="../models/developer_intelligence.js"></script>
+    <script src="../models/skill_tree.js"></script>
+    <script src="../models/knowledge_graph.js"></script>
+    <script src="../models/achievement.js"></script>
+    <script src="../models/roadmap.js"></script>
+    <script src="../models/milestone.js"></script>
+    <script src="../models/projection.js"></script>
+    <script src="../domain/developer_data_store.js"></script>
+    <script src="../services/data_normalization_service.js"></script>
+    <script src="../services/canonical_identity_resolver.js"></script>
+    <script src="../services/curated_lists_dataset_service.js"></script>
+    <script src="../services/curated_lists_service.js"></script>
+    <script src="../services/leetcode_graphql_service.js"></script>
+    <script src="../services/repository_scanner_service.js"></script>
+    <script src="../services/snapshot_engine_service.js"></script>
+    <script src="../models/developer_report.js"></script>
+    <script src="../intelligence/skill_tree_service.js"></script>
+    <script src="../intelligence/journey_service.js"></script>
+    <script src="../intelligence/pattern_service.js"></script>
+    <script src="../intelligence/interview_matrix_service.js"></script>
+    <script src="../intelligence/recommendation_service.js"></script>
+    <script src="../intelligence/achievement_service.js"></script>
+    <script src="../intelligence/projection_service.js"></script>
+    <script src="../intelligence/repository_audit_service.js"></script>
+    <script src="../services/backend_service.js"></script>
+    <script src="../models/diagnostic_models.js"></script>
+    <script src="../domain/diagnostic_event_store.js"></script>
+    <script src="../services/diagnostics_service.js"></script>
+    <script src="../ui/components/diagnostics_screen_component.js"></script>
+    <script src="../ui/report/daily_brief_component.js"></script>
+    <script src="../ui/skill_tree/skill_tree_component.js"></script>
+    <script src="../ui/knowledge_graph/knowledge_graph_component.js"></script>
+    <script src="../ui/journey/timeline_component.js"></script>
+    <script src="../ui/achievements/achievements_component.js"></script>
+    <script src="../ui/projections/projections_component.js"></script>
+    <script src="dashboard.js"></script>
+  </body>
+</html>

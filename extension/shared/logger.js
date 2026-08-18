@@ -40,7 +40,7 @@
      */
     debug(...args) {
       if (currentLogLevel <= Levels.DEBUG) {
-        console.debug("[LeetCode Auto Sync] [DEBUG]", ...args);
+        console.debug("[DevPulse] [DEBUG]", ...args);
       }
     },
 
@@ -50,7 +50,7 @@
      */
     info(...args) {
       if (currentLogLevel <= Levels.INFO) {
-        console.info("[LeetCode Auto Sync] [INFO]", ...args);
+        console.info("[DevPulse] [INFO]", ...args);
       }
     },
 
@@ -60,7 +60,7 @@
      */
     log(...args) {
       if (currentLogLevel <= Levels.INFO) {
-        console.log("[LeetCode Auto Sync] [INFO]", ...args);
+        console.log("[DevPulse] [INFO]", ...args);
       }
     },
 
@@ -70,7 +70,7 @@
      */
     warn(...args) {
       if (currentLogLevel <= Levels.WARN) {
-        console.warn("[LeetCode Auto Sync] [WARN]", ...args);
+        console.warn("[DevPulse] [WARN]", ...args);
       }
     },
 
@@ -80,7 +80,7 @@
      */
     error(...args) {
       if (currentLogLevel <= Levels.ERROR) {
-        console.error("[LeetCode Auto Sync] [ERROR]", ...args);
+        console.error("[DevPulse] [ERROR]", ...args);
       }
     }
   };
